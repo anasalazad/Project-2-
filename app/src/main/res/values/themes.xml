@@ -1,0 +1,6 @@
+<resources>
+    <!-- Base window theme. Everything visible is drawn by Compose (see ui/theme/Theme.kt). -->
+    <style name="Theme.FelineCo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/paper</item>
+    </style>
+</resources>

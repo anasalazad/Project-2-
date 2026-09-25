@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Photos and fonts are looked up by name at runtime (see AssetImage.kt / Type.kt),
+     so tell the resource shrinker never to strip them. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/cat_*,@drawable/product_*,@drawable/hero_*,@drawable/banner_*,@drawable/login_*,@font/*" />

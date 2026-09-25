@@ -1,0 +1,352 @@
+package com.thefelineco.ui.home
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VolunteerActivism
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thefelineco.di.AppViewModelProvider
+import com.thefelineco.domain.CreditRules
+import com.thefelineco.ui.common.CenteredContent
+import com.thefelineco.ui.common.isWideLayout
+import com.thefelineco.ui.components.AssetImage
+import com.thefelineco.ui.components.CatCard
+import com.thefelineco.ui.components.CreditBalanceChip
+import com.thefelineco.ui.components.FelineLogo
+import com.thefelineco.ui.components.FelineMark
+import com.thefelineco.ui.components.LoadingState
+import com.thefelineco.ui.components.PawPattern
+import com.thefelineco.ui.components.Pill
+import com.thefelineco.ui.components.ProductCard
+import com.thefelineco.ui.components.SectionHeader
+import com.thefelineco.ui.theme.Mist
+import com.thefelineco.ui.theme.Onyx
+import com.thefelineco.ui.theme.Silver
+
+private val ScreenPadding = 24.dp
+
+/** Home: the brand's front door. Hero, quick stats, new arrivals, the free-adoption offer and shop picks. */
+@Composable
+fun HomeScreen(
+    onOpenCat: (Long) -> Unit,
+    onBrowseCats: (freeOnly: Boolean) -> Unit,
+    onOpenShop: () -> Unit,
+    viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (state.isLoading) LoadingState() else HomeContent(state, onOpenCat, onBrowseCats, onOpenShop)
+}
+
+@Composable
+fun HomeContent(
+    state: HomeUiState,
+    onOpenCat: (Long) -> Unit,
+    onBrowseCats: (freeOnly: Boolean) -> Unit,
+    onOpenShop: () -> Unit,
+) {
+    val wide = isWideLayout()
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+        item {
+            Hero(
+                firstName = state.user?.firstName,
+                credits = state.user?.credits ?: 0,
+                wide = wide,
+                onBrowseCats = { onBrowseCats(false) },
+                onOpenShop = onOpenShop,
+            )
+        }
+        item {
+            CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(state.availableCount.toString(), "cats looking for a home", Icons.Filled.Pets)
+                    StatCard(state.freeCount.toString(), "free to adopt (2 yrs+)", Icons.Filled.VolunteerActivism)
+                    StatCard(state.kittenCount.toString(), "kittens under 6 months", Icons.Filled.ChildCare)
+                }
+            }
+        }
+        item {
+            CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 36.dp, bottom = 12.dp)) {
+                SectionHeader(
+                    title = "New arrivals",
+                    subtitle = "Freshly health-checked and ready to meet you",
+                    actionLabel = "See all cats",
+                    onAction = { onBrowseCats(false) },
+                )
+            }
+        }
+        item {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = ScreenPadding),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                items(state.newArrivals, key = { it.id }) { cat ->
+                    CatCard(cat, onClick = { onOpenCat(cat.id) }, modifier = Modifier.width(if (wide) 240.dp else 200.dp))
+                }
+            }
+        }
+        item {
+            CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 40.dp)) {
+                SeniorsBanner(wide = wide, onBrowseFree = { onBrowseCats(true) })
+            }
+        }
+        item {
+            CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 40.dp)) {
+                HowItWorks(wide)
+            }
+        }
+        item {
+            CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 40.dp, bottom = 12.dp)) {
+                SectionHeader(
+                    title = "Spoil them",
+                    subtitle = "Royal Feline nutrition and toys, paid for with your credits",
+                    actionLabel = "Visit the shop",
+                    onAction = onOpenShop,
+                )
+            }
+        }
+        item {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = ScreenPadding),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                items(state.shopHighlights, key = { it.id }) { product ->
+                    ProductCard(product, onClick = onOpenShop, modifier = Modifier.width(if (wide) 210.dp else 170.dp))
+                }
+            }
+        }
+        item { Footer() }
+    }
+}
+
+@Composable
+private fun Hero(
+    firstName: String?,
+    credits: Int,
+    wide: Boolean,
+    onBrowseCats: () -> Unit,
+    onOpenShop: () -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().height(if (wide) 480.dp else 440.dp).background(Onyx)) {
+        AssetImage("hero_home", contentDescription = null, modifier = Modifier.fillMaxSize())
+        // Darken the top for the status bar and fade the bottom into the page.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Onyx.copy(alpha = 0.55f),
+                    0.35f to Color.Transparent,
+                    0.7f to Onyx.copy(alpha = 0.6f),
+                    1f to MaterialTheme.colorScheme.background,
+                )
+            )
+        )
+        PawPattern(Modifier.fillMaxSize(), color = Color.White, alpha = 0.05f, count = 16, seed = 3)
+
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = ScreenPadding, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FelineLogo(textColor = Mist)
+            Spacer(Modifier.weight(1f))
+            CreditBalanceChip(credits)
+        }
+
+        Column(
+            Modifier.align(Alignment.BottomStart).padding(ScreenPadding).padding(bottom = 8.dp).widthIn(max = 620.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (firstName != null) {
+                Pill(
+                    "Welcome back, $firstName",
+                    containerColor = Onyx.copy(alpha = 0.6f),
+                    contentColor = Mist,
+                    showPaw = true,
+                )
+            }
+            Text(
+                "Find your forever feline.",
+                style = if (wide) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall,
+                color = Mist,
+            )
+            Text(
+                "Every cat is health-checked, vaccinated, microchipped and desexed, and ready for a loving home.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Silver,
+            )
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onBrowseCats, contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)) {
+                    Icon(Icons.Filled.Pets, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Meet the cats")
+                }
+                OutlinedButton(
+                    onClick = onOpenShop,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Mist),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                ) { Text("Visit the shop") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.StatCard(value: String, label: String, icon: ImageVector) {
+    Card(
+        modifier = Modifier.weight(1f),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                }
+            }
+            Column {
+                Text(value, style = MaterialTheme.typography.headlineMedium)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeniorsBanner(wide: Boolean, onBrowseFree: () -> Unit) {
+    Card(
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        val text: @Composable (Modifier) -> Unit = { modifier ->
+            Column(modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Pill(
+                    "NO ADOPTION FEE",
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    showPaw = true,
+                )
+                Text("Older cats adopt for free", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "Cats aged two and over have no adoption fee, and every completed adoption earns you " +
+                        "${CreditRules.ADOPTION_REWARD} credits to spend in our shop. Mature cats are calm, " +
+                        "settled and full of love.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onBrowseFree, modifier = Modifier.padding(top = 4.dp)) { Text("Browse free-to-adopt cats") }
+            }
+        }
+        if (wide) {
+            Row(Modifier.height(300.dp)) {
+                AssetImage("banner_seniors", "A relaxed older cat", Modifier.weight(1f).fillMaxHeight())
+                text(Modifier.weight(1.2f).fillMaxHeight())
+            }
+        } else {
+            Column {
+                AssetImage("banner_seniors", "A relaxed older cat", Modifier.fillMaxWidth().height(180.dp))
+                text(Modifier)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HowItWorks(wide: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SectionHeader(title = "How adoption works", subtitle = "Three simple steps to bring your companion home")
+        val steps = listOf(
+            Triple(Icons.Filled.Search, "Browse & fall in love", "Search by age, personality and lifestyle to find your perfect match."),
+            Triple(Icons.Filled.CalendarMonth, "Book a meet & greet", "Pick a time to visit. Kittens cost credits, and cats aged 2+ are free."),
+            Triple(Icons.Filled.Favorite, "Take them home", "Complete your adoption and earn ${CreditRules.ADOPTION_REWARD} credits for food and toys."),
+        )
+        if (wide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                steps.forEachIndexed { index, (icon, title, body) ->
+                    StepCard(index + 1, icon, title, body, Modifier.weight(1f))
+                }
+            }
+        } else {
+            steps.forEachIndexed { index, (icon, title, body) -> StepCard(index + 1, icon, title, body, Modifier.fillMaxWidth()) }
+        }
+    }
+}
+
+@Composable
+private fun StepCard(number: Int, icon: ImageVector, title: String, body: String, modifier: Modifier) {
+    Card(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("$number", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
+                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun Footer() {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 48.dp, bottom = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FelineMark(size = 36.dp)
+        Text(
+            "The Feline Co. · Rescue, rehome, royally spoil.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}

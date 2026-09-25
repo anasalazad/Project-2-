@@ -1,0 +1,8 @@
+<resources>
+    <!-- Only used by XML resources (window background, launcher icon). Compose colours live in ui/theme/Color.kt -->
+    <color name="onyx">#FF0E0E10</color>
+    <color name="paper">#FFF7F5F5</color>
+    <color name="crimson">#FFC8102E</color>
+    <color name="silver">#FFE6E6EA</color>
+    <color name="ic_launcher_background">#FF0E0E10</color>
+</resources>

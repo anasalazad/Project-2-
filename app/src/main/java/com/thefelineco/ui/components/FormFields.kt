@@ -1,0 +1,117 @@
+package com.thefelineco.ui.components
+
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+
+/**
+ * Text field used by every form: shows [error] under the field in red, with an error icon, and
+ * [helper] text otherwise. Material marks the field as in error for screen readers.
+ */
+@Composable
+fun ValidatedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    error: String?,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    helper: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: (() -> Unit)? = null,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    enabled: Boolean = true,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailingIcon: @Composable (() -> Unit)? = null,
+) {
+    // Explicit types make sure these optional slots are treated as composable lambdas.
+    val leading: (@Composable () -> Unit)? =
+        if (leadingIcon != null) { { Icon(leadingIcon, contentDescription = null) } } else null
+    val trailing: (@Composable () -> Unit)? = when {
+        trailingIcon != null -> trailingIcon
+        error != null -> { { Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) } }
+        else -> null
+    }
+    val supportingMessage = error ?: helper
+    val supporting: (@Composable () -> Unit)? =
+        if (supportingMessage != null) { { Text(supportingMessage) } } else null
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        isError = error != null,
+        enabled = enabled,
+        singleLine = singleLine,
+        minLines = minLines,
+        leadingIcon = leading,
+        trailingIcon = trailing,
+        supportingText = supporting,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        keyboardActions = KeyboardActions(
+            onAny = { if (onImeAction != null) onImeAction() else defaultKeyboardAction(imeAction) },
+        ),
+        visualTransformation = visualTransformation,
+        shape = MaterialTheme.shapes.medium,
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+/** Password field with a show/hide toggle. */
+@Composable
+fun PasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    error: String?,
+    modifier: Modifier = Modifier,
+    helper: String? = null,
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: (() -> Unit)? = null,
+) {
+    var visible by rememberSaveable { mutableStateOf(false) }
+    ValidatedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = label,
+        error = error,
+        modifier = modifier,
+        leadingIcon = Icons.Filled.Lock,
+        helper = helper,
+        keyboardType = KeyboardType.Password,
+        imeAction = imeAction,
+        onImeAction = onImeAction,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { visible = !visible }) {
+                Icon(
+                    if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = if (visible) "Hide password" else "Show password",
+                )
+            }
+        },
+    )
+}
