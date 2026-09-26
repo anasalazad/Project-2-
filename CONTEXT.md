@@ -154,11 +154,12 @@ Seed data (`data/local/seed/`) runs on first launch: 24 cats, 18 products, an ad
 FelineApplication.kt        MainActivity.kt
 di/                         AppContainer, AppViewModelProvider
 data/local/                 FelineDatabase, Converters, dao/, entity/, seed/
-data/repository/            Cat/Booking/Shop/User/Session repositories
+data/repository/            Cat/Booking/Shop/User repositories, SessionStore, SettingsStore
 domain/model/               Cat, Booking, Product, CartItem, Order, User, CreditTransaction, enums
 domain/                     CreditRules, CatQuery (filter+sort), ProductQuery
-domain/validation/          Validators, FieldError
+domain/validation/          Validators
 ui/theme/                   Color, Type, Shape, Theme
+ui/common/                  setFelineContent (shared activity theme), layout helpers, formatters
 ui/components/              reusable composables
 ui/navigation/              Routes, FelineNavHost, FelineAppShell (nav suite)
 ui/auth/ ui/home/ ui/adopt/ ui/catdetail/ ui/shop/ ui/basket/ ui/bookings/ ui/profile/ ui/admin/
@@ -196,22 +197,28 @@ ui/checkout/                CheckoutActivity, CheckoutViewModel, CheckoutContrac
 - Use Kotlin features where they read well: sealed interfaces for events and results, data classes,
   extension functions (entity ↔ domain mappers), `when` expressions, default arguments.
 - No hard-coded user-facing strings in logic. UI strings live in composables/`strings.xml`.
-- Tests: `app/src/test` for validators, credit rules, cat/product queries and ViewModels (fake repos);
-  `app/src/androidTest` for key Compose flows.
+- Tests: `app/src/test` for validators, credit rules, cat/product queries and ViewModels (fake repos in
+  `testing/Fakes.kt`); `app/src/androidTest` for the Room credit/stock flows and the login form.
 
 ## 9. Build phases
 
 - [x] **Phase 0**: Plan, `CONTEXT.md`, `ASSETS.md`
-- [x] **Phase 1**: Gradle project, manifest, theme, branding (logo, paws, launcher icon), Room data layer +
-      seed data, repositories, DI, auth (login/register/session), app shell with navigation (other screens
-      as branded placeholders), Home screen, domain unit tests (22 passing)
-- [ ] **Phase 2**: Adopt (search/filter/sort) + Cat Detail
-- [ ] **Phase 3**: BookingActivity + Activity Result + My Bookings + credit holds/refunds
-- [ ] **Phase 4**: Shop + Basket + CheckoutActivity + Profile/Wallet (transactions, orders)
-- [ ] **Phase 5**: Admin (dashboard, cat CRUD, appointments, products)
-- [ ] **Phase 6**: Polish (animations, empty/error states), unit + UI tests, final review
+- [x] **Phase 1**: Gradle project, theme, branding (logo, paws, launcher icon), Room data layer + seed data,
+      repositories, DI, auth (login/register/session), adaptive app shell, Home screen
+- [x] **Phase 2**: Adopt (search, filter panel/sheet, sort, animated grid) + Cat Detail
+- [x] **Phase 3**: BookingActivity + Activity Result + My Bookings + credit holds/refunds
+- [x] **Phase 4**: Shop + Basket + CheckoutActivity + Account (wallet, orders, dark/light toggle)
+- [x] **Phase 5**: Admin (dashboard, cat add/edit/delete, appointments, products)
+- [x] **Phase 6**: Unit + instrumented tests, compile verification, review, docs (`TESTING.md`)
+- [ ] **Next**: user runs it on the tablet → fix anything found → add photos (`ASSETS.md`) → polish
 
-After each phase the user syncs and runs the app in Android Studio on the tablet and reports issues.
+### How the code has been verified (no Android SDK in the build container)
+- **All app Kotlin compiles** against JetBrains' desktop Compose 1.7.3 (the same `androidx.compose` APIs as
+  Compose BOM 2024.12), with small stand-ins for Android-only types (Activity, Room annotations,
+  DataStore, Navigation, Lifecycle). Result: 0 errors, 0 warnings.
+- **40 JVM unit tests pass** (rules, queries, validators, Adopt/Booking/Checkout ViewModels).
+- **Not yet run:** Room's annotation processor (KSP), resource/manifest merging, the instrumented tests in
+  `app/src/androidTest`, and the app itself on a device. These happen on the first Android Studio build.
 
 ## 10. Decision log
 - Cats only; brand name **The Feline Co.**; red / gray / black, premium, with cute cat touches.
@@ -221,3 +228,7 @@ After each phase the user syncs and runs the app in Android Studio on the tablet
 - Photos are provided manually by the user as local drawables (list in `ASSETS.md`); the app falls back to
   branded placeholders.
 - No network needed at runtime.
+- Meet & greet time slots are shelter-wide (one visiting room), so a slot taken for any cat is unavailable.
+- "Pending" is only ever set by a booking; admins can switch between Available and Adopted.
+- Theme defaults to dark (the brand look); Account → Dark theme switches to light and is remembered.
+- Admin forms validate image names against Android resource rules and preview the photo live.

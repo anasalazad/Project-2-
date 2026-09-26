@@ -50,8 +50,8 @@ class DatabaseSeeder(private val db: FelineDatabase) {
             CreditTransactionEntity(
                 userId = demoId,
                 amount = DEMO_CREDITS - CreditRules.WELCOME_BONUS,
-                type = TransactionType.ADOPTION_REWARD,
-                description = "Demo bonus credits",
+                type = TransactionType.WELCOME_BONUS,
+                description = "Demo account bonus",
             )
         )
     }

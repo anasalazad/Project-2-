@@ -97,7 +97,11 @@ fun ProfileContent(state: ProfileUiState, user: User, onDarkTheme: (Boolean) -> 
             if (!user.isAdmin) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     HistoryTabs(tab) { tab = it }
-                    LazyColumn(contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LazyColumn(
+                        Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         history(tab, state)
                     }
                 }

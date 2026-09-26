@@ -49,8 +49,10 @@ fun AuthLayout(
                 FormColumn(title, subtitle, Modifier.weight(1f).fillMaxHeight(), content)
             }
         } else {
+            // Read the constraint here: layout scopes can't see the outer scope's members implicitly.
+            val bannerHeight = if (maxHeight > 700.dp) 260.dp else 180.dp
             Column(Modifier.fillMaxSize()) {
-                BrandPanel(Modifier.fillMaxWidth().height(if (maxHeight > 700.dp) 260.dp else 180.dp), large = false)
+                BrandPanel(Modifier.fillMaxWidth().height(bannerHeight), large = false)
                 FormColumn(title, subtitle, Modifier.weight(1f), content)
             }
         }

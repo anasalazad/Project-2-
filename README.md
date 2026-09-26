@@ -6,6 +6,7 @@ on Royal Feline food and toys. Admins manage listings, appointments and products
 
 - **Plan, architecture and progress:** [`CONTEXT.md`](CONTEXT.md)
 - **Photos and fonts to add:** [`ASSETS.md`](ASSETS.md)
+- **How to test (automated + step-by-step on the tablet):** [`TESTING.md`](TESTING.md)
 - **Course brief:** [`Specifications and requirements.md`](Specifications%20and%20requirements.md)
 
 ## Run it
@@ -25,4 +26,6 @@ The login screen also has one-tap **Customer** / **Admin** demo buttons.
 
 ## Tests
 
-- Unit tests (rules, filters, validators): right-click `app/src/test` → **Run tests**, or `./gradlew test`.
+- **Unit tests** (40: rules, filters, validators, ViewModels): right-click `app/src/test/java` → **Run**, or `./gradlew test`.
+- **Instrumented tests** (Room credit/stock flows, login UI): connect the tablet, right-click `app/src/androidTest/java` → **Run**.
+- **Manual script:** see [`TESTING.md`](TESTING.md).
