@@ -14,6 +14,12 @@ import com.thefelineco.ui.adopt.AdoptScreen
 import com.thefelineco.ui.catdetail.CatDetailScreen
 import com.thefelineco.ui.common.ComingSoonScreen
 import com.thefelineco.domain.model.Booking
+import com.thefelineco.domain.model.DeliveryMethod
+import com.thefelineco.domain.model.Order
+import com.thefelineco.ui.basket.BasketScreen
+import com.thefelineco.ui.checkout.CheckoutContract
+import com.thefelineco.ui.profile.ProfileScreen
+import com.thefelineco.ui.shop.ShopScreen
 import com.thefelineco.ui.booking.BookMeetAndGreet
 import com.thefelineco.ui.bookings.BookingsScreen
 import com.thefelineco.ui.common.formatLong
@@ -68,19 +74,39 @@ fun FelineNavHost(
                 )
             }
         }
-        composable<ShopRoute> { ComingSoonScreen("Shop", "Royal Feline food, toys and more. Arriving in Phase 4.") }
-        composable<BasketRoute> { ComingSoonScreen("Basket", "Your basket and checkout arrive in Phase 4.") }
+        composable<ShopRoute> { ShopScreen() }
+        composable<BasketRoute> {
+            // Activity Result API: launch CheckoutActivity with the basket, receive the Order back.
+            var placed by rememberSaveable { mutableStateOf<Order?>(null) }
+            val checkoutLauncher = rememberLauncherForActivityResult(CheckoutContract()) { order -> placed = order }
+            BasketScreen(
+                onCheckout = { items -> checkoutLauncher.launch(items) },
+                onShop = { navController.navigateToTopLevel(ShopRoute) },
+            )
+            placed?.let { order ->
+                SuccessDialog(
+                    title = "Order placed!",
+                    message = "Order #${order.id} · ${order.itemCount} item${if (order.itemCount == 1) "" else "s"} · " +
+                        "${order.total} credits. " +
+                        if (order.deliveryMethod == DeliveryMethod.CLICK_AND_COLLECT) "It'll be ready to collect tomorrow."
+                        else "It's on its way to ${order.deliveryName}.",
+                    confirmLabel = "View my orders",
+                    onConfirm = {
+                        placed = null
+                        navController.navigateToTopLevel(ProfileRoute)
+                    },
+                    dismissLabel = "Keep shopping",
+                    onDismiss = {
+                        placed = null
+                        navController.navigateToTopLevel(ShopRoute)
+                    },
+                )
+            }
+        }
         composable<BookingsRoute> {
             BookingsScreen(onFindCat = { navController.navigateToTopLevel(AdoptRoute()) })
         }
-        composable<ProfileRoute> {
-            ComingSoonScreen(
-                title = "Hi, ${user.firstName}",
-                message = "${user.email} · ${user.credits} credits\nYour wallet and order history arrive in Phase 4.",
-                actionLabel = "Log out",
-                onAction = onLogout,
-            )
-        }
+        composable<ProfileRoute> { ProfileScreen(onLogout = onLogout) }
 
         // Admin
         composable<AdminDashboardRoute> { ComingSoonScreen("Admin dashboard", "Arriving in Phase 5.") }

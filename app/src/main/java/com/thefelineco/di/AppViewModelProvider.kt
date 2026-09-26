@@ -9,10 +9,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import com.thefelineco.FelineApplication
 import com.thefelineco.ui.adopt.AdoptViewModel
+import com.thefelineco.ui.basket.BasketViewModel
 import com.thefelineco.ui.bookings.BookingsViewModel
 import com.thefelineco.ui.catdetail.CatDetailViewModel
 import com.thefelineco.ui.navigation.AdoptRoute
 import com.thefelineco.ui.navigation.CatDetailRoute
+import com.thefelineco.ui.profile.ProfileViewModel
+import com.thefelineco.ui.shop.ShopViewModel
 import com.thefelineco.ui.MainViewModel
 import com.thefelineco.ui.auth.LoginViewModel
 import com.thefelineco.ui.auth.RegisterViewModel
@@ -42,6 +45,11 @@ object AppViewModelProvider {
             )
         }
         initializer { BookingsViewModel(container().userRepository, container().bookingRepository) }
+        initializer { ShopViewModel(container().userRepository, container().shopRepository) }
+        initializer { BasketViewModel(container().userRepository, container().shopRepository) }
+        initializer {
+            ProfileViewModel(container().userRepository, container().shopRepository, container().settingsStore)
+        }
     }
 }
 

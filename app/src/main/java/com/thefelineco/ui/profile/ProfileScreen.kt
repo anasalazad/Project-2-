@@ -1,0 +1,294 @@
+package com.thefelineco.ui.profile
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thefelineco.di.AppViewModelProvider
+import com.thefelineco.domain.CreditRules
+import com.thefelineco.domain.model.CreditTransaction
+import com.thefelineco.domain.model.Order
+import com.thefelineco.domain.model.TransactionType
+import com.thefelineco.domain.model.User
+import com.thefelineco.ui.common.formatDateTime
+import com.thefelineco.ui.common.isExpandedLayout
+import com.thefelineco.ui.common.signed
+import com.thefelineco.ui.components.EmptyState
+import com.thefelineco.ui.components.FelineMark
+import com.thefelineco.ui.components.LoadingState
+import com.thefelineco.ui.components.PawPattern
+import com.thefelineco.ui.components.Pill
+import com.thefelineco.ui.theme.FelineTheme
+
+/** Account: profile, credit wallet history, orders and settings. */
+@Composable
+fun ProfileScreen(
+    onLogout: () -> Unit,
+    viewModel: ProfileViewModel = viewModel(factory = AppViewModelProvider.Factory),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val user = state.user
+    if (state.isLoading || user == null) LoadingState() else ProfileContent(state, user, viewModel::setDarkTheme, onLogout)
+}
+
+@Composable
+fun ProfileContent(state: ProfileUiState, user: User, onDarkTheme: (Boolean) -> Unit, onLogout: () -> Unit) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+
+    if (isExpandedLayout()) {
+        Row(Modifier.fillMaxSize().statusBarsPadding().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Column(
+                Modifier.width(380.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                AccountCard(state, user)
+                SettingsCard(state.darkTheme, onDarkTheme, onLogout)
+            }
+            if (!user.isAdmin) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    HistoryTabs(tab) { tab = it }
+                    LazyColumn(contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        history(tab, state)
+                    }
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            Modifier.fillMaxSize().statusBarsPadding(),
+            contentPadding = PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { AccountCard(state, user) }
+            item { SettingsCard(state.darkTheme, onDarkTheme, onLogout) }
+            if (!user.isAdmin) {
+                item { HistoryTabs(tab) { tab = it } }
+                history(tab, state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountCard(state: ProfileUiState, user: User) {
+    Card(
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Box {
+            PawPattern(Modifier.matchParentSize(), count = 8, seed = 11)
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                user.fullName.split(' ').mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString(""),
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(user.fullName, style = MaterialTheme.typography.headlineSmall)
+                        Text(user.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Pill(
+                        if (user.isAdmin) "Admin" else "Member",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                if (!user.isAdmin) {
+                    HorizontalDivider()
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FelineMark(size = 44.dp)
+                        Column(Modifier.weight(1f)) {
+                            Text("Credit balance", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${user.credits} credits", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Stat("Earned", "${state.totalEarned}")
+                        Stat("Spent", "${state.totalSpent}")
+                        Stat("Orders", "${state.orders.size}")
+                    }
+                    Text(
+                        "Earn ${CreditRules.ADOPTION_REWARD} credits every time you complete an adoption.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stat(label: String, value: String) {
+    Column {
+        Text(value, style = MaterialTheme.typography.titleLarge)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SettingsCard(darkTheme: Boolean, onDarkTheme: (Boolean) -> Unit, onLogout: () -> Unit) {
+    Card(
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().toggleable(value = darkTheme, role = Role.Switch, onValueChange = onDarkTheme).padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Filled.DarkMode, contentDescription = null)
+                Column(Modifier.weight(1f)) {
+                    Text("Dark theme", style = MaterialTheme.typography.titleMedium)
+                    Text("Our signature look", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = darkTheme, onCheckedChange = null)
+            }
+            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("  Log out")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryTabs(selected: Int, onSelect: (Int) -> Unit) {
+    PrimaryTabRow(selectedTabIndex = selected, containerColor = MaterialTheme.colorScheme.background) {
+        Tab(selected = selected == 0, onClick = { onSelect(0) }, text = { Text("Wallet history") }, icon = { Icon(Icons.Filled.Receipt, null) })
+        Tab(selected = selected == 1, onClick = { onSelect(1) }, text = { Text("Orders") }, icon = { Icon(Icons.Filled.ShoppingBag, null) })
+    }
+}
+
+/** Adds the rows for the selected tab to a list. */
+private fun LazyListScope.history(tab: Int, state: ProfileUiState) {
+    if (tab == 0) {
+        if (state.transactions.isEmpty()) {
+            item { EmptyState("No credit activity yet", "Your welcome bonus and adoptions will show here.") }
+        }
+        items(state.transactions, key = { "t${it.id}" }) { TransactionRow(it) }
+    } else {
+        if (state.orders.isEmpty()) {
+            item { EmptyState("No orders yet", "Treat your cat from the shop, paid for with credits.", icon = Icons.Filled.ShoppingBag) }
+        }
+        items(state.orders, key = { "o${it.id}" }) { OrderCard(it) }
+    }
+}
+
+@Composable
+private fun TransactionRow(transaction: CreditTransaction) {
+    val positive = transaction.amount > 0
+    val icon: ImageVector = when (transaction.type) {
+        TransactionType.WELCOME_BONUS -> Icons.Filled.Pets
+        TransactionType.ADOPTION_REWARD -> Icons.Filled.Favorite
+        TransactionType.ADOPTION_REFUND -> Icons.Filled.Replay
+        TransactionType.SHOP_PURCHASE -> Icons.Filled.ShoppingBag
+        TransactionType.ADOPTION_FEE -> if (positive) Icons.Filled.AddCircle else Icons.Filled.RemoveCircle
+    }
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(transaction.description, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "${transaction.type.label} · ${transaction.createdAt.formatDateTime()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                transaction.amount.signed(),
+                style = MaterialTheme.typography.titleLarge,
+                color = if (positive) FelineTheme.colors.success else MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OrderCard(order: Order) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Order #${order.id}", style = MaterialTheme.typography.titleMedium)
+                    Text(order.createdAt.formatDateTime(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text("${order.total} credits", style = MaterialTheme.typography.titleMedium)
+            }
+            order.items.forEach { item ->
+                Text("${item.quantity} × ${item.name}", style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.LocalShipping, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    "${order.deliveryMethod.label} · ${order.address}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
