@@ -1,11 +1,16 @@
 package com.thefelineco.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.thefelineco.domain.model.User
+import com.thefelineco.ui.adopt.AdoptScreen
+import com.thefelineco.ui.catdetail.CatDetailScreen
 import com.thefelineco.ui.common.ComingSoonScreen
+import com.thefelineco.ui.common.LocalSnackbarHostState
+import kotlinx.coroutines.launch
 import com.thefelineco.ui.home.HomeScreen
 
 /** Every in-app screen for a signed-in user. Secondary activities are launched from these screens. */
@@ -27,8 +32,18 @@ fun FelineNavHost(
                 onOpenShop = { navController.navigateToTopLevel(ShopRoute) },
             )
         }
-        composable<AdoptRoute> { ComingSoonScreen("Adopt", "Search, filter and sort every cat. Arriving in Phase 2.") }
-        composable<CatDetailRoute> { ComingSoonScreen("Cat profile", "Full profiles and booking arrive in Phase 2.") }
+        composable<AdoptRoute> {
+            AdoptScreen(onOpenCat = { catId -> navController.navigate(CatDetailRoute(catId)) })
+        }
+        composable<CatDetailRoute> {
+            val snackbar = LocalSnackbarHostState.current
+            val scope = rememberCoroutineScope()
+            CatDetailScreen(
+                onBack = { navController.popBackStack() },
+                onBook = { cat -> scope.launch { snackbar.showSnackbar("Booking ${cat.name} arrives in Phase 3") } },
+                onOpenCat = { catId -> navController.navigate(CatDetailRoute(catId)) },
+            )
+        }
         composable<ShopRoute> { ComingSoonScreen("Shop", "Royal Feline food, toys and more. Arriving in Phase 4.") }
         composable<BasketRoute> { ComingSoonScreen("Basket", "Your basket and checkout arrive in Phase 4.") }
         composable<BookingsRoute> { ComingSoonScreen("My bookings", "Your meet & greet appointments arrive in Phase 3.") }
