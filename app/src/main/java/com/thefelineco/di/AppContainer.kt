@@ -6,10 +6,12 @@ import com.thefelineco.data.local.seed.DatabaseSeeder
 import com.thefelineco.data.repository.BookingRepository
 import com.thefelineco.data.repository.CatRepository
 import com.thefelineco.data.repository.DataStoreSessionStore
+import com.thefelineco.data.repository.DataStoreSettingsStore
 import com.thefelineco.data.repository.OfflineBookingRepository
 import com.thefelineco.data.repository.OfflineCatRepository
 import com.thefelineco.data.repository.OfflineShopRepository
 import com.thefelineco.data.repository.OfflineUserRepository
+import com.thefelineco.data.repository.SettingsStore
 import com.thefelineco.data.repository.ShopRepository
 import com.thefelineco.data.repository.UserRepository
 
@@ -22,6 +24,7 @@ interface AppContainer {
     val catRepository: CatRepository
     val bookingRepository: BookingRepository
     val shopRepository: ShopRepository
+    val settingsStore: SettingsStore
     val seeder: DatabaseSeeder
 }
 
@@ -34,5 +37,6 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val catRepository: CatRepository by lazy { OfflineCatRepository(database) }
     override val bookingRepository: BookingRepository by lazy { OfflineBookingRepository(database) }
     override val shopRepository: ShopRepository by lazy { OfflineShopRepository(database) }
+    override val settingsStore: SettingsStore by lazy { DataStoreSettingsStore(context) }
     override val seeder: DatabaseSeeder by lazy { DatabaseSeeder(database) }
 }

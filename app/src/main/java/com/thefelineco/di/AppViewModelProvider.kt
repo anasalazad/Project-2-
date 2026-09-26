@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import com.thefelineco.FelineApplication
 import com.thefelineco.ui.adopt.AdoptViewModel
+import com.thefelineco.ui.bookings.BookingsViewModel
 import com.thefelineco.ui.catdetail.CatDetailViewModel
 import com.thefelineco.ui.navigation.AdoptRoute
 import com.thefelineco.ui.navigation.CatDetailRoute
@@ -40,6 +41,7 @@ object AppViewModelProvider {
                 userRepository = container().userRepository,
             )
         }
+        initializer { BookingsViewModel(container().userRepository, container().bookingRepository) }
     }
 }
 

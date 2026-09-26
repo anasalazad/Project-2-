@@ -20,6 +20,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Opened from a cat's profile with a Parcelable Cat; returns a Parcelable Booking. -->
+        <activity
+            android:name=".ui.booking.BookingActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

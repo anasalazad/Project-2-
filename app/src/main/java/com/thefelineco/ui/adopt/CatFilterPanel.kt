@@ -97,10 +97,17 @@ private fun FilterGroup(title: String, chips: @Composable () -> Unit) {
 
 /** Filter chip in brand colours, with a tick when selected. */
 @Composable
-fun FelineFilterChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun FelineFilterChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     FilterChip(
         selected = selected,
         onClick = onClick,
+        enabled = enabled,
         label = { Text(label) },
         leadingIcon = if (selected) {
             { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChildCare
@@ -41,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -169,7 +171,14 @@ private fun Hero(
     onBrowseCats: () -> Unit,
     onOpenShop: () -> Unit,
 ) {
-    Box(Modifier.fillMaxWidth().height(if (wide) 480.dp else 440.dp).background(Onyx)) {
+    // The hero is always dark (in light theme too) so its white text stays readable.
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(if (wide) 480.dp else 440.dp)
+            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+            .background(Onyx)
+    ) {
         AssetImage("hero_home", contentDescription = null, modifier = Modifier.fillMaxSize())
         // Darken the top for the status bar and fade the bottom into the page.
         Box(
@@ -177,8 +186,8 @@ private fun Hero(
                 Brush.verticalGradient(
                     0f to Onyx.copy(alpha = 0.55f),
                     0.35f to Color.Transparent,
-                    0.7f to Onyx.copy(alpha = 0.6f),
-                    1f to MaterialTheme.colorScheme.background,
+                    0.65f to Onyx.copy(alpha = 0.55f),
+                    1f to Onyx.copy(alpha = 0.95f),
                 )
             )
         )
