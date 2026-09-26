@@ -1,0 +1,208 @@
+package com.thefelineco.ui.admin
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thefelineco.data.repository.BookingRepository
+import com.thefelineco.di.AppViewModelProvider
+import com.thefelineco.domain.CreditRules
+import com.thefelineco.domain.model.Booking
+import com.thefelineco.domain.model.BookingStatus
+import com.thefelineco.ui.adopt.FelineFilterChip
+import com.thefelineco.ui.common.LocalSnackbarHostState
+import com.thefelineco.ui.components.BookingCard
+import com.thefelineco.ui.components.ConfirmDialog
+import com.thefelineco.ui.components.EmptyState
+import com.thefelineco.ui.components.LoadingState
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/** Tabs on the appointments screen. */
+enum class BookingFilter(val label: String, val statuses: Set<BookingStatus>) {
+    REQUESTED("Requests", setOf(BookingStatus.REQUESTED)),
+    CONFIRMED("Confirmed", setOf(BookingStatus.CONFIRMED)),
+    COMPLETED("Adopted", setOf(BookingStatus.COMPLETED)),
+    CLOSED("Cancelled & declined", setOf(BookingStatus.CANCELLED, BookingStatus.DECLINED)),
+    ALL("All", BookingStatus.entries.toSet()),
+}
+
+data class AdminBookingsUiState(
+    val isLoading: Boolean = true,
+    val filter: BookingFilter = BookingFilter.REQUESTED,
+    val bookings: List<Booking> = emptyList(),
+    val counts: Map<BookingFilter, Int> = emptyMap(),
+)
+
+/** Admin actions on the adoption pipeline: confirm, decline, complete. */
+class AdminBookingsViewModel(private val bookingRepository: BookingRepository) : ViewModel() {
+    private val filter = MutableStateFlow(BookingFilter.REQUESTED)
+
+    val uiState: StateFlow<AdminBookingsUiState> = combine(bookingRepository.observeAllBookings(), filter) { all, f ->
+        AdminBookingsUiState(
+            isLoading = false,
+            filter = f,
+            bookings = all.filter { it.status in f.statuses },
+            counts = BookingFilter.entries.associateWith { bf -> all.count { it.status in bf.statuses } },
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdminBookingsUiState())
+
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages: Flow<String> = _messages.receiveAsFlow()
+
+    fun setFilter(value: BookingFilter) = filter.update { value }
+
+    fun confirm(b: Booking) = act({ bookingRepository.confirm(b.id) }, "Confirmed ${b.fullName}'s visit with ${b.catName}")
+
+    fun decline(b: Booking) = act(
+        { bookingRepository.decline(b.id) },
+        "Declined. " + if (b.feeCredits > 0) "${b.feeCredits} credits refunded to ${b.fullName}." else "${b.catName} is available again.",
+    )
+
+    fun complete(b: Booking) = act(
+        { bookingRepository.completeAdoption(b.id) },
+        "${b.catName} is adopted! ${b.fullName} earned ${CreditRules.ADOPTION_REWARD} credits.",
+    )
+
+    private fun act(action: suspend () -> Result<Unit>, successMessage: String) {
+        viewModelScope.launch {
+            action().onSuccess { _messages.send(successMessage) }.onFailure { _messages.send(it.message ?: "Something went wrong") }
+        }
+    }
+}
+
+private enum class PendingAction { DECLINE, COMPLETE }
+
+@Composable
+fun AdminBookingsScreen(viewModel: AdminBookingsViewModel = viewModel(factory = AppViewModelProvider.Factory)) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarHostState.current
+    LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
+    // Declining and completing change credits, so they're confirmed first.
+    var pending by remember { mutableStateOf<Pair<PendingAction, Booking>?>(null) }
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        AdminHeader("Appointments", "Meet & greet requests and adoptions")
+        LazyRow(contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(BookingFilter.entries) { f ->
+                FelineFilterChip("${f.label} (${state.counts[f] ?: 0})", state.filter == f) { viewModel.setFilter(f) }
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when {
+                state.isLoading -> LoadingState()
+                state.bookings.isEmpty() -> EmptyState(
+                    "Nothing here", "No ${state.filter.label.lowercase()} right now.", Modifier.align(Alignment.Center),
+                    icon = Icons.AutoMirrored.Filled.EventNote,
+                )
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(420.dp),
+                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    items(state.bookings, key = { it.id }) { booking ->
+                        BookingCard(booking, Modifier.animateItem()) {
+                            HorizontalDivider()
+                            CustomerDetails(booking)
+                            if (booking.status.isActive) {
+                                Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { pending = PendingAction.DECLINE to booking }) { Text("Decline") }
+                                    if (booking.status == BookingStatus.REQUESTED) {
+                                        Button(onClick = { viewModel.confirm(booking) }) { Text("Confirm") }
+                                    } else {
+                                        Button(onClick = { pending = PendingAction.COMPLETE to booking }) { Text("Complete adoption") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pending?.let { (action, booking) ->
+        when (action) {
+            PendingAction.DECLINE -> ConfirmDialog(
+                title = "Decline this request?",
+                message = "${booking.catName} will be available again" +
+                    if (booking.feeCredits > 0) " and ${booking.fullName} gets ${booking.feeCredits} credits back." else ".",
+                confirmLabel = "Decline",
+                destructive = true,
+                icon = Icons.Filled.EventBusy,
+                onConfirm = { viewModel.decline(booking); pending = null },
+                onDismiss = { pending = null },
+                dismissLabel = "Cancel",
+            )
+            PendingAction.COMPLETE -> ConfirmDialog(
+                title = "Complete ${booking.catName}'s adoption?",
+                message = "${booking.catName} will be marked as adopted and ${booking.fullName} " +
+                    "will receive ${CreditRules.ADOPTION_REWARD} reward credits.",
+                confirmLabel = "Complete adoption",
+                icon = Icons.Filled.Favorite,
+                onConfirm = { viewModel.complete(booking); pending = null },
+                onDismiss = { pending = null },
+                dismissLabel = "Cancel",
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomerDetails(booking: Booking) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(booking.fullName, style = MaterialTheme.typography.titleSmall)
+        Text("${booking.email} · ${booking.phone}", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            buildString {
+                append(booking.homeType)
+                append(if (booking.hasOtherPets) " · has other pets" else " · no other pets")
+                append(if (booking.hasChildren) " · children at home" else " · no children")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (booking.notes.isNotBlank()) {
+            Text("“${booking.notes}”", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}

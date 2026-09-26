@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
@@ -12,7 +13,14 @@ import androidx.navigation.compose.composable
 import com.thefelineco.domain.model.User
 import com.thefelineco.ui.adopt.AdoptScreen
 import com.thefelineco.ui.catdetail.CatDetailScreen
-import com.thefelineco.ui.common.ComingSoonScreen
+import com.thefelineco.ui.admin.AdminBookingsScreen
+import com.thefelineco.ui.admin.AdminCatsScreen
+import com.thefelineco.ui.admin.AdminDashboardScreen
+import com.thefelineco.ui.admin.AdminProductsScreen
+import com.thefelineco.ui.admin.CatFormScreen
+import com.thefelineco.ui.admin.ProductFormScreen
+import com.thefelineco.ui.common.LocalSnackbarHostState
+import kotlinx.coroutines.launch
 import com.thefelineco.domain.model.Booking
 import com.thefelineco.domain.model.DeliveryMethod
 import com.thefelineco.domain.model.Order
@@ -33,6 +41,14 @@ fun FelineNavHost(
     user: User,
     onLogout: () -> Unit,
 ) {
+    // Lives as long as the NavHost, so a message survives the form screen closing.
+    val snackbar = LocalSnackbarHostState.current
+    val scope = rememberCoroutineScope()
+    val finishForm: (String) -> Unit = { message ->
+        navController.popBackStack()
+        scope.launch { snackbar.showSnackbar(message) }
+    }
+
     NavHost(
         navController = navController,
         startDestination = if (user.isAdmin) AdminDashboardRoute else HomeRoute,
@@ -109,11 +125,31 @@ fun FelineNavHost(
         composable<ProfileRoute> { ProfileScreen(onLogout = onLogout) }
 
         // Admin
-        composable<AdminDashboardRoute> { ComingSoonScreen("Admin dashboard", "Arriving in Phase 5.") }
-        composable<AdminCatsRoute> { ComingSoonScreen("Manage cats", "Arriving in Phase 5.") }
-        composable<AdminCatEditRoute> { ComingSoonScreen("Edit cat", "Arriving in Phase 5.") }
-        composable<AdminBookingsRoute> { ComingSoonScreen("Appointments", "Arriving in Phase 5.") }
-        composable<AdminProductsRoute> { ComingSoonScreen("Manage products", "Arriving in Phase 5.") }
-        composable<AdminProductEditRoute> { ComingSoonScreen("Edit product", "Arriving in Phase 5.") }
+        composable<AdminDashboardRoute> {
+            AdminDashboardScreen(
+                onAddCat = { navController.navigate(AdminCatEditRoute()) },
+                onOpenAppointments = { navController.navigateToTopLevel(AdminBookingsRoute) },
+                onOpenProducts = { navController.navigateToTopLevel(AdminProductsRoute) },
+            )
+        }
+        composable<AdminCatsRoute> {
+            AdminCatsScreen(
+                onEditCat = { catId -> navController.navigate(AdminCatEditRoute(catId)) },
+                onAddCat = { navController.navigate(AdminCatEditRoute()) },
+            )
+        }
+        composable<AdminCatEditRoute> {
+            CatFormScreen(onBack = { navController.popBackStack() }, onDone = finishForm)
+        }
+        composable<AdminBookingsRoute> { AdminBookingsScreen() }
+        composable<AdminProductsRoute> {
+            AdminProductsScreen(
+                onEditProduct = { id -> navController.navigate(AdminProductEditRoute(id)) },
+                onAddProduct = { navController.navigate(AdminProductEditRoute()) },
+            )
+        }
+        composable<AdminProductEditRoute> {
+            ProductFormScreen(onBack = { navController.popBackStack() }, onDone = finishForm)
+        }
     }
 }
