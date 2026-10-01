@@ -1,0 +1,217 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 4842c1cf2e20bbd01589398ae54b5399c779f81c..bfbcf1a0406fed01bafd2c54421d977cbdfb725f 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -4,6 +4,7 @@ plugins {
+     alias(libs.plugins.android.application)
+     alias(libs.plugins.kotlin.android)
+     alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.kotlin.parcelize)
+ }
+ 
+ android {
+diff --git a/app/src/main/java/com/thefelineco/domain/CreditRules.kt b/app/src/main/java/com/thefelineco/domain/CreditRules.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..b86f0c1eb0d6162fb51020cf1276a0fa7ca79afe
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/CreditRules.kt
+@@ -0,0 +1,27 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.AgeGroup
++
++/**
++ * The credit economy in one place (see CONTEXT.md §4), so it is easy to tune and test.
++ */
++object CreditRules {
++    /** Credits every new customer starts with. */
++    const val WELCOME_BONUS = 200
++
++    /** Credits added when an adoption is completed. */
++    const val ADOPTION_REWARD = 250
++
++    const val KITTEN_FEE = 150
++    const val YOUNG_FEE = 100
++
++    /** Adoption fee for a cat of [ageMonths]. Cats aged two and over are free. */
++    fun adoptionFee(ageMonths: Int): Int = when (AgeGroup.of(ageMonths)) {
++        AgeGroup.KITTEN -> KITTEN_FEE
++        AgeGroup.YOUNG -> YOUNG_FEE
++        AgeGroup.ADULT, AgeGroup.SENIOR -> 0
++    }
++
++    /** Whether a balance of [credits] covers [cost]. */
++    fun canAfford(credits: Int, cost: Int): Boolean = credits >= cost
++}
+diff --git a/app/src/main/java/com/thefelineco/domain/model/Cat.kt b/app/src/main/java/com/thefelineco/domain/model/Cat.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..694bd508114e0d98b2e967605765285b4eb3fe27
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/model/Cat.kt
+@@ -0,0 +1,60 @@
++package com.thefelineco.domain.model
++
++import android.os.Parcelable
++import com.thefelineco.domain.CreditRules
++import kotlinx.parcelize.Parcelize
++
++/**
++ * A cat listed for adoption.
++ *
++ * It is [Parcelable] so it can be sent from the Cat Detail screen to BookingActivity inside an Intent.
++ */
++@Parcelize
++data class Cat(
++    val id: Long = 0,
++    val name: String,
++    val breed: String,
++    val ageMonths: Int,
++    val sex: Sex,
++    val coat: CoatLength,
++    val colour: String,
++    val weightKg: Double,
++    val personality: List<String>,
++    val description: String,
++    val imageName: String,
++    val goodWithKids: Boolean,
++    val goodWithCats: Boolean,
++    val goodWithDogs: Boolean,
++    val indoorOnly: Boolean,
++    val vaccinated: Boolean = true,
++    val desexed: Boolean = true,
++    val microchipped: Boolean = true,
++    val specialNeeds: String? = null,
++    val status: AdoptionStatus = AdoptionStatus.AVAILABLE,
++    val listedAt: Long = System.currentTimeMillis(),
++) : Parcelable {
++
++    val ageGroup: AgeGroup get() = AgeGroup.of(ageMonths)
++
++    /** Adoption fee in credits. Zero means free. */
++    val adoptionFee: Int get() = CreditRules.adoptionFee(ageMonths)
++
++    val isFree: Boolean get() = adoptionFee == 0
++
++    /** Human-friendly age, e.g. "3 months", "1 year 2 months", "7 years". */
++    val ageLabel: String get() = formatAge(ageMonths)
++
++    companion object {
++        /** Formats an age in months the way people say it out loud. */
++        fun formatAge(months: Int): String {
++            val years = months / 12
++            val rem = months % 12
++            fun plural(n: Int, unit: String) = "$n $unit${if (n == 1) "" else "s"}"
++            return when {
++                years == 0 -> plural(rem, "month")
++                rem == 0 || years >= 3 -> plural(years, "year")
++                else -> "${plural(years, "year")} ${plural(rem, "month")}"
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/domain/model/Enums.kt b/app/src/main/java/com/thefelineco/domain/model/Enums.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a9e881f171c0c2753d4bc0cfaed8fc5e44d7bb7
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/model/Enums.kt
+@@ -0,0 +1,81 @@
++package com.thefelineco.domain.model
++
++/** Biological sex of a cat, shown on cards and used as a filter. */
++enum class Sex(val label: String) {
++    MALE("Male"),
++    FEMALE("Female"),
++}
++
++/** Coat length, used as a filter. */
++enum class CoatLength(val label: String) {
++    SHORT("Short"),
++    MEDIUM("Medium"),
++    LONG("Long"),
++    HAIRLESS("Hairless"),
++}
++
++/**
++ * Life stage, derived from age. Drives both the adoption fee and the "Age" filter chips.
++ *
++ * @property monthRange ages (in months) that belong to this group.
++ */
++enum class AgeGroup(val label: String, val monthRange: IntRange) {
++    KITTEN("Kitten", 0..5),
++    YOUNG("Young", 6..23),
++    ADULT("Adult", 24..95),
++    SENIOR("Senior", 96..Int.MAX_VALUE);
++
++    companion object {
++        /** Returns the group that [ageMonths] falls into. */
++        fun of(ageMonths: Int): AgeGroup =
++            entries.first { ageMonths.coerceAtLeast(0) in it.monthRange }
++    }
++}
++
++/** Where a cat is in the adoption pipeline. */
++enum class AdoptionStatus(val label: String) {
++    AVAILABLE("Available"),
++    PENDING("Adoption pending"),
++    ADOPTED("Adopted"),
++}
++
++/** Lifecycle of a meet & greet booking. See CONTEXT.md §4. */
++enum class BookingStatus(val label: String) {
++    REQUESTED("Requested"),
++    CONFIRMED("Confirmed"),
++    COMPLETED("Adopted"),
++    CANCELLED("Cancelled"),
++    DECLINED("Declined");
++
++    /** True while the booking still holds the cat and the customer's credits. */
++    val isActive: Boolean get() = this == REQUESTED || this == CONFIRMED
++}
++
++/** Shop categories, in the order shown as tabs. */
++enum class ProductCategory(val label: String) {
++    FOOD("Food"),
++    TREATS("Treats"),
++    TOYS("Toys"),
++    BEDS("Beds"),
++    GROOMING("Grooming"),
++    ACCESSORIES("Accessories"),
++}
++
++/** Account type. Admins get the management screens instead of the shopping ones. */
++enum class UserRole { CUSTOMER, ADMIN }
++
++/** Why a customer's credit balance changed. */
++enum class TransactionType(val label: String) {
++    WELCOME_BONUS("Welcome bonus"),
++    ADOPTION_FEE("Adoption fee"),
++    ADOPTION_REFUND("Adoption fee refund"),
++    ADOPTION_REWARD("Adoption reward"),
++    SHOP_PURCHASE("Shop purchase"),
++}
++
++/** How a shop order reaches the customer. [extraCredits] is added to the order total. */
++enum class DeliveryMethod(val label: String, val extraCredits: Int) {
++    STANDARD("Standard delivery (3–5 days)", 0),
++    EXPRESS("Express delivery (next day)", 10),
++    CLICK_AND_COLLECT("Click & collect", 0),
++}
+diff --git a/build.gradle.kts b/build.gradle.kts
+index cc021fa8c6454eed8d722634846dc5b20fc21b22..d208932ea8b9a4e5f9d535566c6cc575a7af3dec 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,4 +3,5 @@ plugins {
+     alias(libs.plugins.android.application) apply false
+     alias(libs.plugins.kotlin.android) apply false
+     alias(libs.plugins.kotlin.compose) apply false
++    alias(libs.plugins.kotlin.parcelize) apply false
+ }
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index bb9933ff7d6ae13dcafdcf5cc19df0119c1b053a..1c7519b908e915d005852266adcd787da668aa6e 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -22,3 +22,4 @@ androidx-material-icons-extended = { group = "androidx.compose.material", name =
+ android-application = { id = "com.android.application", version.ref = "agp" }
+ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
++kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }

@@ -1,0 +1,193 @@
+diff --git a/app/src/main/java/com/thefelineco/domain/CatQuery.kt b/app/src/main/java/com/thefelineco/domain/CatQuery.kt
+index 56b291ec8ad974911f121e2637ec0a68aef80560..0242cb8e2de5662ae7e739a4b76cf6c6bcc3b59c 100644
+--- a/app/src/main/java/com/thefelineco/domain/CatQuery.kt
++++ b/app/src/main/java/com/thefelineco/domain/CatQuery.kt
+@@ -30,16 +30,20 @@ data class CatQuery(
+     val goodWithCats: Boolean = false,
+     val goodWithDogs: Boolean = false,
+     val freeOnly: Boolean = false,
++    val favouritesOnly: Boolean = false,
+     val statuses: Set<AdoptionStatus> = setOf(AdoptionStatus.AVAILABLE, AdoptionStatus.PENDING),
+     val sort: CatSort = CatSort.NEWEST,
+ ) {
+     /** Number of active filters (not counting text or sort), shown on the "Filters" button. */
+     val activeFilterCount: Int
+         get() = ageGroups.size + sexes.size + coats.size +
+-            listOf(goodWithKids, goodWithCats, goodWithDogs, freeOnly).count { it }
++            listOf(goodWithKids, goodWithCats, goodWithDogs, freeOnly, favouritesOnly).count { it }
+ 
+-    /** Returns the cats that match this query, in the chosen order. */
+-    fun apply(cats: List<Cat>): List<Cat> = cats
++    /**
++     * Returns the cats that match this query, in the chosen order.
++     * @param favourites ids of the user's hearted cats, used by [favouritesOnly].
++     */
++    fun apply(cats: List<Cat>, favourites: Set<Long> = emptySet()): List<Cat> = cats
+         .asSequence()
+         .filter { it.status in statuses }
+         .filter { it.matchesText(text) }
+@@ -50,6 +54,7 @@ data class CatQuery(
+         .filter { !goodWithCats || it.goodWithCats }
+         .filter { !goodWithDogs || it.goodWithDogs }
+         .filter { !freeOnly || it.isFree }
++        .filter { !favouritesOnly || it.id in favourites }
+         .sortedWith(sort.comparator)
+         .toList()
+ }
+diff --git a/app/src/main/java/com/thefelineco/ui/common/Favourites.kt b/app/src/main/java/com/thefelineco/ui/common/Favourites.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a7352ff39fe4b2c66a07b281e0ded418a50af23
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/common/Favourites.kt
+@@ -0,0 +1,22 @@
++package com.thefelineco.ui.common
++
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.UserRepository
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++
++/** The signed-in user's favourite cat ids, live. Empty when signed out. Shared by Home, Adopt and Cat Detail. */
++@OptIn(ExperimentalCoroutinesApi::class)
++fun favouriteIds(userRepository: UserRepository, catRepository: CatRepository): Flow<Set<Long>> =
++    userRepository.currentUser.flatMapLatest { user ->
++        if (user == null) flowOf(emptySet()) else catRepository.observeFavouriteIds(user.id)
++    }
++
++/** Hearts or un-hearts [catId] for the signed-in user. Returns the new state, or null if signed out. */
++suspend fun toggleFavourite(userRepository: UserRepository, catRepository: CatRepository, catId: Long): Boolean? {
++    val user = userRepository.currentUser.first() ?: return null
++    return catRepository.toggleFavourite(user.id, catId)
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/components/CatCard.kt b/app/src/main/java/com/thefelineco/ui/components/CatCard.kt
+index 59c99893cde3686d10c7a84ca5a88ff59413211a..00e2b6fd482e2ce85f3b23e791013a80b6af5855 100644
+--- a/app/src/main/java/com/thefelineco/ui/components/CatCard.kt
++++ b/app/src/main/java/com/thefelineco/ui/components/CatCard.kt
+@@ -1,5 +1,8 @@
+ package com.thefelineco.ui.components
+ 
++import androidx.compose.animation.core.Spring
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.spring
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+@@ -11,18 +14,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.material.icons.Icons
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material.icons.filled.Favorite
++import androidx.compose.material.icons.filled.FavoriteBorder
+ import androidx.compose.material.icons.filled.Female
+ import androidx.compose.material.icons.filled.Male
+ import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.style.TextOverflow
+@@ -39,7 +49,13 @@ import com.thefelineco.ui.theme.Silver
+  * Used on Home (carousel) and Adopt (grid).
+  */
+ @Composable
+-fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
++fun CatCard(
++    cat: Cat,
++    onClick: () -> Unit,
++    modifier: Modifier = Modifier,
++    isFavourite: Boolean = false,
++    onToggleFavourite: (() -> Unit)? = null,
++) {
+     val sexLabel = cat.sex.label
+     val feeLabel = if (cat.isFree) "free to adopt" else "${cat.adoptionFee} credits"
+     Card(
+@@ -68,9 +84,20 @@ fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
+                         )
+                     )
+             )
+-            FeeBadge(cat.adoptionFee, Modifier.align(Alignment.TopStart).padding(12.dp))
+-            if (cat.status != AdoptionStatus.AVAILABLE) {
+-                AdoptionStatusChip(cat.status, Modifier.align(Alignment.TopEnd).padding(12.dp))
++            Column(
++                Modifier.align(Alignment.TopStart).padding(12.dp),
++                verticalArrangement = Arrangement.spacedBy(6.dp),
++            ) {
++                FeeBadge(cat.adoptionFee)
++                if (cat.status != AdoptionStatus.AVAILABLE) AdoptionStatusChip(cat.status)
++            }
++            if (onToggleFavourite != null) {
++                FavouriteButton(
++                    isFavourite = isFavourite,
++                    onToggle = onToggleFavourite,
++                    catName = cat.name,
++                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
++                )
+             }
+             Column(
+                 Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),
+@@ -103,3 +130,33 @@ fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
+         }
+     }
+ }
++
++/**
++ * Heart toggle with a little "pop" when a cat is favourited. Sits on photos, so it has its own dark
++ * backing to stay visible on any image.
++ */
++@Composable
++fun FavouriteButton(
++    isFavourite: Boolean,
++    onToggle: () -> Unit,
++    catName: String,
++    modifier: Modifier = Modifier,
++) {
++    val scale by animateFloatAsState(
++        targetValue = if (isFavourite) 1.15f else 1f,
++        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium),
++        label = "heart",
++    )
++    IconButton(onClick = onToggle, modifier = modifier) {
++        Surface(shape = CircleShape, color = Onyx.copy(alpha = 0.55f), modifier = Modifier.size(38.dp)) {
++            Box(contentAlignment = Alignment.Center) {
++                Icon(
++                    if (isFavourite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
++                    contentDescription = if (isFavourite) "Remove $catName from favourites" else "Add $catName to favourites",
++                    tint = if (isFavourite) MaterialTheme.colorScheme.primary else Mist,
++                    modifier = Modifier.size(22.dp).graphicsLayer { scaleX = scale; scaleY = scale },
++                )
++            }
++        }
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt b/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt
+index cfe7a8137c2f2c3b15b85cfa5d4c6e79943ac6c7..4f01561b57204e7c395edd4707b7eab5490141b5 100644
+--- a/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt
++++ b/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt
+@@ -63,6 +63,12 @@ class CatQueryTest {
+         assertEquals(5, all.apply(cats).size)
+     }
+ 
++    @Test
++    fun `favourites only keeps hearted cats`() {
++        assertEquals(listOf("Archie"), CatQuery(favouritesOnly = true).apply(cats, favourites = setOf(2L, 4L)).map(Cat::name))
++        assertEquals(emptyList<String>(), CatQuery(favouritesOnly = true).names())
++    }
++
+     @Test
+     fun `active filter count ignores text and sort`() {
+         val query = CatQuery(text = "x", sort = CatSort.NAME, sexes = setOf(Sex.MALE), freeOnly = true)

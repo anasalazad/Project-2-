@@ -1,0 +1,472 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index 8d3c1ee5ad4e85690ce0c8d29c90f55f143cb764..cea8e12056996a2de9b9dbe881d9eea0b4349456 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -43,7 +43,11 @@ object AppViewModelProvider {
+         }
+         initializer {
+             // Route arguments arrive through the SavedStateHandle of the navigation back stack entry.
+-            AdoptViewModel(createSavedStateHandle().toRoute<AdoptRoute>().freeOnly, container().catRepository)
++            AdoptViewModel(
++                initialFreeOnly = createSavedStateHandle().toRoute<AdoptRoute>().freeOnly,
++                catRepository = container().catRepository,
++                userRepository = container().userRepository,
++            )
+         }
+         initializer {
+             CatDetailViewModel(
+diff --git a/app/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt b/app/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt
+index 55cbe4ded37a941ece200f628e3b6177222b2245..f2df455d0a118bc2d025e10a7798bd5036d75c8a 100644
+--- a/app/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt
++++ b/app/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt
+@@ -97,8 +97,12 @@ fun AdoptContent(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit, onOpenCat:
+                 when {
+                     state.isLoading -> LoadingState()
+                     state.results.isEmpty() -> EmptyState(
+-                        title = "No cats match",
+-                        message = "Try a different search or remove a filter. New cats arrive every week!",
++                        title = if (state.query.favouritesOnly && state.favourites.isEmpty()) "No favourites yet" else "No cats match",
++                        message = if (state.query.favouritesOnly && state.favourites.isEmpty()) {
++                            "Tap the heart on any cat to save them here."
++                        } else {
++                            "Try a different search or remove a filter. New cats arrive every week!"
++                        },
+                         icon = Icons.Filled.SearchOff,
+                         actionLabel = "Clear filters",
+                         onAction = {
+@@ -116,7 +120,13 @@ fun AdoptContent(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit, onOpenCat:
+                     ) {
+                         items(state.results, key = { it.id }) { cat ->
+                             // animateItem() makes cards slide into place as filters change.
+-                            CatCard(cat, onClick = { onOpenCat(cat.id) }, modifier = Modifier.animateItem())
++                            CatCard(
++                                cat = cat,
++                                onClick = { onOpenCat(cat.id) },
++                                isFavourite = cat.id in state.favourites,
++                                onToggleFavourite = { onEvent(AdoptEvent.ToggleFavourite(cat.id)) },
++                                modifier = Modifier.animateItem(),
++                            )
+                         }
+                     }
+                 }
+@@ -198,6 +208,11 @@ private fun QuickFilters(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit) {
+         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+         horizontalArrangement = Arrangement.spacedBy(8.dp),
+     ) {
++        item {
++            FelineFilterChip("♥ Favourites (${state.favourites.size})", state.query.favouritesOnly) {
++                onEvent(AdoptEvent.ToggleFavouritesOnly)
++            }
++        }
+         item {
+             FelineFilterChip("Free to adopt", state.query.freeOnly) { onEvent(AdoptEvent.ToggleFreeOnly) }
+         }
+diff --git a/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt b/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt
+index 9f29d5ee833afbad3531ba9dce34d8bae722d933..373e62398a53c374a6395208fd6474516d370c3d 100644
+--- a/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt
++++ b/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt
+@@ -3,19 +3,23 @@ package com.thefelineco.ui.adopt
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
+ import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.UserRepository
+ import com.thefelineco.domain.CatQuery
+ import com.thefelineco.domain.CatSort
+ import com.thefelineco.domain.model.AgeGroup
+ import com.thefelineco.domain.model.Cat
+ import com.thefelineco.domain.model.CoatLength
+ import com.thefelineco.domain.model.Sex
++import com.thefelineco.ui.common.favouriteIds
+ import com.thefelineco.ui.common.toggle
++import com.thefelineco.ui.common.toggleFavourite
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
+ 
+ data class AdoptUiState(
+     val isLoading: Boolean = true,
+@@ -23,6 +27,8 @@ data class AdoptUiState(
+     val results: List<Cat> = emptyList(),
+     /** Cats visible before filters (i.e. not adopted), for "12 of 22". */
+     val totalCount: Int = 0,
++    /** Ids of the cats the user has hearted. */
++    val favourites: Set<Long> = emptySet(),
+ )
+ 
+ /** Everything the user can do on the Adopt screen. */
+@@ -35,6 +41,8 @@ sealed interface AdoptEvent {
+     data object ToggleCats : AdoptEvent
+     data object ToggleDogs : AdoptEvent
+     data object ToggleFreeOnly : AdoptEvent
++    data object ToggleFavouritesOnly : AdoptEvent
++    data class ToggleFavourite(val catId: Long) : AdoptEvent
+     data class SortChanged(val sort: CatSort) : AdoptEvent
+     data object ClearFilters : AdoptEvent
+ }
+@@ -48,21 +56,31 @@ sealed interface AdoptEvent {
+  */
+ class AdoptViewModel(
+     initialFreeOnly: Boolean,
+-    catRepository: CatRepository,
++    private val catRepository: CatRepository,
++    private val userRepository: UserRepository,
+ ) : ViewModel() {
+ 
+     private val query = MutableStateFlow(CatQuery(freeOnly = initialFreeOnly))
+ 
+-    val uiState: StateFlow<AdoptUiState> = combine(catRepository.observeCats(), query) { cats, q ->
++    val uiState: StateFlow<AdoptUiState> = combine(
++        catRepository.observeCats(),
++        query,
++        favouriteIds(userRepository, catRepository),
++    ) { cats, q, favourites ->
+         AdoptUiState(
+             isLoading = false,
+             query = q,
+-            results = q.apply(cats),
++            results = q.apply(cats, favourites),
+             totalCount = cats.count { it.status in q.statuses },
++            favourites = favourites,
+         )
+     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdoptUiState(query = query.value))
+ 
+     fun onEvent(event: AdoptEvent) {
++        if (event is AdoptEvent.ToggleFavourite) {
++            viewModelScope.launch { toggleFavourite(userRepository, catRepository, event.catId) }
++            return
++        }
+         query.update { q ->
+             when (event) {
+                 is AdoptEvent.SearchChanged -> q.copy(text = event.text)
+@@ -73,6 +91,8 @@ class AdoptViewModel(
+                 AdoptEvent.ToggleCats -> q.copy(goodWithCats = !q.goodWithCats)
+                 AdoptEvent.ToggleDogs -> q.copy(goodWithDogs = !q.goodWithDogs)
+                 AdoptEvent.ToggleFreeOnly -> q.copy(freeOnly = !q.freeOnly)
++                AdoptEvent.ToggleFavouritesOnly -> q.copy(favouritesOnly = !q.favouritesOnly)
++                is AdoptEvent.ToggleFavourite -> q // handled above
+                 is AdoptEvent.SortChanged -> q.copy(sort = event.sort)
+                 // Keep the search text and sort order; only reset the filters.
+                 AdoptEvent.ClearFilters -> CatQuery(text = q.text, sort = q.sort)
+diff --git a/app/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt b/app/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt
+index 6697b9a6dd54c654a45bc494318cd487bc687a8b..43a1ac41a9ddf611ed1ce1c3b50ecf88cdb0b98e 100644
+--- a/app/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt
++++ b/app/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt
+@@ -38,8 +38,9 @@ fun CatFilterPanel(query: CatQuery, onEvent: (AdoptEvent) -> Unit, modifier: Mod
+                 TextButton(onClick = { onEvent(AdoptEvent.ClearFilters) }) { Text("Clear all") }
+             }
+         }
+-        FilterGroup("Adoption fee") {
++        FilterGroup("Show") {
+             FelineFilterChip("Free to adopt (2 yrs+)", query.freeOnly) { onEvent(AdoptEvent.ToggleFreeOnly) }
++            FelineFilterChip("My favourites", query.favouritesOnly) { onEvent(AdoptEvent.ToggleFavouritesOnly) }
+         }
+         FilterGroup("Age") {
+             AgeGroup.entries.forEach { group ->
+diff --git a/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt
+index 2c6faf111eb6af437363850f8aa33794d0a9777b..97a302baf18d01349ab952d06e310f053744a61b 100644
+--- a/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt
++++ b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt
+@@ -70,6 +70,7 @@ import com.thefelineco.ui.components.AdoptionStatusChip
+ import com.thefelineco.ui.components.AssetImage
+ import com.thefelineco.ui.components.CatCard
+ import com.thefelineco.ui.components.EmptyState
++import com.thefelineco.ui.components.FavouriteButton
+ import com.thefelineco.ui.components.FeeBadge
+ import com.thefelineco.ui.components.LoadingState
+ import com.thefelineco.ui.components.Pill
+@@ -100,7 +101,7 @@ fun CatDetailScreen(
+                 onAction = onBack,
+             )
+         }
+-        else -> CatDetailContent(state, cat, onBack, onBook, onOpenCat)
++        else -> CatDetailContent(state, cat, onBack, onBook, onOpenCat, viewModel::onToggleFavourite)
+     }
+ }
+ 
+@@ -111,6 +112,7 @@ fun CatDetailContent(
+     onBack: () -> Unit,
+     onBook: (Cat) -> Unit,
+     onOpenCat: (Long) -> Unit,
++    onToggleFavourite: () -> Unit,
+ ) {
+     if (isExpandedLayout()) {
+         // Large tablet: photo on the left, details scroll on the right.
+@@ -123,6 +125,9 @@ fun CatDetailContent(
+                     modifier = Modifier.fillMaxSize().clip(MaterialTheme.shapes.extraLarge),
+                 )
+                 BackButton(onBack, Modifier.padding(16.dp))
++                if (!state.isAdmin) {
++                    FavouriteButton(state.isFavourite, onToggleFavourite, cat.name, Modifier.align(Alignment.TopEnd).padding(10.dp))
++                }
+             }
+             Column(
+                 Modifier
+@@ -151,6 +156,12 @@ fun CatDetailContent(
+                     )
+                 )
+                 BackButton(onBack, Modifier.statusBarsPadding().padding(16.dp))
++                if (!state.isAdmin) {
++                    FavouriteButton(
++                        state.isFavourite, onToggleFavourite, cat.name,
++                        Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(10.dp),
++                    )
++                }
+             }
+             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                 CatDetails(state, cat, onBook, onOpenCat)
+diff --git a/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt
+index a561ab20ed725dbe6c88f34d555f5cfbbbc94b8d..1840579c177fe2468505f88e9f5fe30f033ba1e3 100644
+--- a/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt
++++ b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt
+@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++import com.thefelineco.ui.common.favouriteIds
++import com.thefelineco.ui.common.toggleFavourite
+ 
+ data class CatDetailUiState(
+     val isLoading: Boolean = true,
+@@ -18,6 +21,7 @@ data class CatDetailUiState(
+     val credits: Int = 0,
+     val isAdmin: Boolean = false,
+     val similar: List<Cat> = emptyList(),
++    val isFavourite: Boolean = false,
+ ) {
+     val canAfford: Boolean get() = cat != null && CreditRules.canAfford(credits, cat.adoptionFee)
+     val creditsShort: Int get() = ((cat?.adoptionFee ?: 0) - credits).coerceAtLeast(0)
+@@ -26,21 +30,23 @@ data class CatDetailUiState(
+ 
+ /** One cat's profile, kept live so a status change (e.g. someone else booking) shows immediately. */
+ class CatDetailViewModel(
+-    catId: Long,
+-    catRepository: CatRepository,
+-    userRepository: UserRepository,
++    private val catId: Long,
++    private val catRepository: CatRepository,
++    private val userRepository: UserRepository,
+ ) : ViewModel() {
+ 
+     val uiState: StateFlow<CatDetailUiState> = combine(
+         catRepository.observeCats(),
+         userRepository.currentUser,
+-    ) { cats, user ->
++        favouriteIds(userRepository, catRepository),
++    ) { cats, user, favourites ->
+         val cat = cats.firstOrNull { it.id == catId }
+         CatDetailUiState(
+             isLoading = false,
+             cat = cat,
+             credits = user?.credits ?: 0,
+             isAdmin = user?.isAdmin == true,
++            isFavourite = catId in favourites,
+             // Other available cats of the same life stage: "You might also love".
+             similar = if (cat == null) emptyList() else cats
+                 .filter { it.id != cat.id && it.status == AdoptionStatus.AVAILABLE && it.ageGroup == cat.ageGroup }
+@@ -48,6 +54,10 @@ class CatDetailViewModel(
+         )
+     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatDetailUiState())
+ 
++    fun onToggleFavourite() {
++        viewModelScope.launch { toggleFavourite(userRepository, catRepository, catId) }
++    }
++
+     private companion object {
+         const val SIMILAR_COUNT = 8
+     }
+diff --git a/app/src/main/java/com/thefelineco/ui/home/HomeScreen.kt b/app/src/main/java/com/thefelineco/ui/home/HomeScreen.kt
+index fb395999827a2788b1bce0632951144bbbf07f8e..1ec36da38174f606d6a027d12c2029c7d3c43787 100644
+--- a/app/src/main/java/com/thefelineco/ui/home/HomeScreen.kt
++++ b/app/src/main/java/com/thefelineco/ui/home/HomeScreen.kt
+@@ -79,7 +79,7 @@ fun HomeScreen(
+     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
+ ) {
+     val state by viewModel.uiState.collectAsStateWithLifecycle()
+-    if (state.isLoading) LoadingState() else HomeContent(state, onOpenCat, onBrowseCats, onOpenShop)
++    if (state.isLoading) LoadingState() else HomeContent(state, onOpenCat, onBrowseCats, onOpenShop, viewModel::onToggleFavourite)
+ }
+ 
+ @Composable
+@@ -88,6 +88,7 @@ fun HomeContent(
+     onOpenCat: (Long) -> Unit,
+     onBrowseCats: (freeOnly: Boolean) -> Unit,
+     onOpenShop: () -> Unit,
++    onToggleFavourite: (Long) -> Unit = {},
+ ) {
+     val wide = isWideLayout()
+     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+@@ -125,7 +126,37 @@ fun HomeContent(
+                 horizontalArrangement = Arrangement.spacedBy(16.dp),
+             ) {
+                 items(state.newArrivals, key = { it.id }) { cat ->
+-                    CatCard(cat, onClick = { onOpenCat(cat.id) }, modifier = Modifier.width(if (wide) 240.dp else 200.dp))
++                    CatCard(
++                        cat = cat,
++                        onClick = { onOpenCat(cat.id) },
++                        isFavourite = cat.id in state.favourites,
++                        onToggleFavourite = { onToggleFavourite(cat.id) },
++                        modifier = Modifier.width(if (wide) 240.dp else 200.dp),
++                    )
++                }
++            }
++        }
++        // Only shown once the user has hearted a cat.
++        if (state.favouriteCats.isNotEmpty()) {
++            item {
++                CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 36.dp, bottom = 12.dp)) {
++                    SectionHeader(title = "Your favourites", subtitle = "The cats you've fallen for")
++                }
++            }
++            item {
++                LazyRow(
++                    contentPadding = PaddingValues(horizontal = ScreenPadding),
++                    horizontalArrangement = Arrangement.spacedBy(16.dp),
++                ) {
++                    items(state.favouriteCats, key = { it.id }) { cat ->
++                        CatCard(
++                            cat = cat,
++                            onClick = { onOpenCat(cat.id) },
++                            isFavourite = true,
++                            onToggleFavourite = { onToggleFavourite(cat.id) },
++                            modifier = Modifier.width(if (wide) 200.dp else 170.dp).animateItem(),
++                        )
++                    }
+                 }
+             }
+         }
+diff --git a/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt b/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt
+index 8afdfbcec09ffbb1fc211efa2e56d39e39e50bef..f44bd07aa302dcdff2c1726addf04a80f00bad5d 100644
+--- a/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt
++++ b/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt
+@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++import com.thefelineco.ui.common.favouriteIds
++import com.thefelineco.ui.common.toggleFavourite
+ 
+ data class HomeUiState(
+     val isLoading: Boolean = true,
+@@ -23,12 +26,15 @@ data class HomeUiState(
+     val freeCount: Int = 0,
+     val kittenCount: Int = 0,
+     val shopHighlights: List<Product> = emptyList(),
++    /** Hearted cats that haven't been adopted yet, by name. */
++    val favouriteCats: List<Cat> = emptyList(),
++    val favourites: Set<Long> = emptySet(),
+ )
+ 
+ /** Builds the Home dashboard from live cat, product and user data. */
+ class HomeViewModel(
+-    userRepository: UserRepository,
+-    catRepository: CatRepository,
++    private val userRepository: UserRepository,
++    private val catRepository: CatRepository,
+     shopRepository: ShopRepository,
+ ) : ViewModel() {
+ 
+@@ -36,7 +42,8 @@ class HomeViewModel(
+         userRepository.currentUser,
+         catRepository.observeCats(),
+         shopRepository.observeProducts(),
+-    ) { user, cats, products ->
++        favouriteIds(userRepository, catRepository),
++    ) { user, cats, products, favourites ->
+         val available = cats.filter { it.status == AdoptionStatus.AVAILABLE }
+         HomeUiState(
+             isLoading = false,
+@@ -46,9 +53,15 @@ class HomeViewModel(
+             freeCount = available.count { it.isFree },
+             kittenCount = available.count { it.ageGroup == AgeGroup.KITTEN },
+             shopHighlights = products.filter { it.inStock }.take(SHOP_HIGHLIGHTS),
++            favouriteCats = cats.filter { it.id in favourites && it.status != AdoptionStatus.ADOPTED }.sortedBy { it.name },
++            favourites = favourites,
+         )
+     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+ 
++    fun onToggleFavourite(catId: Long) {
++        viewModelScope.launch { toggleFavourite(userRepository, catRepository, catId) }
++    }
++
+     private companion object {
+         const val NEW_ARRIVALS = 10
+         const val SHOP_HIGHLIGHTS = 8
+diff --git a/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt b/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt
+index 5b2978d7d4c937fec41dada5c69971ffa5850dd7..a3cc668586f1da310abfacbe82c67f2e35e626a2 100644
+--- a/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt
++++ b/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt
+@@ -3,6 +3,7 @@ package com.thefelineco.ui
+ import com.thefelineco.domain.model.AgeGroup
+ import com.thefelineco.domain.testCat
+ import com.thefelineco.testing.FakeCatRepository
++import com.thefelineco.testing.FakeUserRepository
+ import com.thefelineco.testing.MainDispatcherRule
+ import com.thefelineco.ui.adopt.AdoptEvent
+ import com.thefelineco.ui.adopt.AdoptViewModel
+@@ -26,6 +27,8 @@ class AdoptViewModelTest {
+         )
+     )
+ 
++    private val users = FakeUserRepository()
++
+     /** Keeps the WhileSubscribed state flow active for the test. */
+     private fun kotlinx.coroutines.test.TestScope.subscribe(vm: AdoptViewModel) =
+         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+@@ -34,14 +37,14 @@ class AdoptViewModelTest {
+ 
+     @Test
+     fun `opening from the free banner shows only free cats`() = runTest {
+-        val vm = AdoptViewModel(initialFreeOnly = true, catRepository = repo)
++        val vm = AdoptViewModel(initialFreeOnly = true, catRepository = repo, userRepository = users)
+         subscribe(vm)
+         assertEquals(listOf("Archie"), vm.names())
+     }
+ 
+     @Test
+     fun `search and filters update the results`() = runTest {
+-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
+         subscribe(vm)
+         assertEquals(listOf("Mochi", "Luna", "Archie"), vm.names())
+ 
+@@ -55,7 +58,7 @@ class AdoptViewModelTest {
+ 
+     @Test
+     fun `clearing filters keeps the search text`() = runTest {
+-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
+         subscribe(vm)
+         vm.onEvent(AdoptEvent.SearchChanged("a"))
+         vm.onEvent(AdoptEvent.ToggleFreeOnly)
+@@ -66,10 +69,24 @@ class AdoptViewModelTest {
+ 
+     @Test
+     fun `new listings appear without reloading`() = runTest {
+-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
+         subscribe(vm)
+         repo.cats.value = repo.cats.value + testCat(id = 4, name = "Nala", listedAt = 9)
+         assertEquals("Nala", vm.names().first())
+         assertEquals(4, vm.uiState.value.totalCount)
+     }
++
++    @Test
++    fun `hearting a cat adds it to favourites and the favourites filter`() = runTest {
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
++        subscribe(vm)
++        vm.onEvent(AdoptEvent.ToggleFavourite(2))
++        assertEquals(setOf(2L), vm.uiState.value.favourites)
++
++        vm.onEvent(AdoptEvent.ToggleFavouritesOnly)
++        assertEquals(listOf("Luna"), vm.names())
++
++        vm.onEvent(AdoptEvent.ToggleFavourite(2))
++        assertEquals(emptyList<String>(), vm.names())
++    }
+ }

@@ -1,0 +1,267 @@
+diff --git a/app/src/main/java/com/thefelineco/MainActivity.kt b/app/src/main/java/com/thefelineco/MainActivity.kt
+index 2ffef0fc712de32c4c6368fb56db9c2560696225..b751d5f82dcf1a04c340034d18a117aba325de45 100644
+--- a/app/src/main/java/com/thefelineco/MainActivity.kt
++++ b/app/src/main/java/com/thefelineco/MainActivity.kt
+@@ -1,7 +1,9 @@
+ package com.thefelineco
+ 
++import android.graphics.Color
+ import android.os.Bundle
+ import androidx.activity.ComponentActivity
++import androidx.activity.SystemBarStyle
+ import androidx.activity.compose.setContent
+ import androidx.activity.enableEdgeToEdge
+ import androidx.compose.foundation.layout.Box
+@@ -11,17 +13,26 @@ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import com.thefelineco.ui.theme.FelineTheme
+ 
+-/** Entry point. For now it only proves the Compose setup works. */
++/** Entry point. Shows a type and colour check in the brand theme. */
+ class MainActivity : ComponentActivity() {
+     override fun onCreate(savedInstanceState: Bundle?) {
++        // The brand is dark-first, so the system bar icons are light.
++        enableEdgeToEdge(
++            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
++            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
++        )
+         super.onCreate(savedInstanceState)
+-        enableEdgeToEdge()
+         setContent {
+-            MaterialTheme {
+-                Surface(Modifier.fillMaxSize()) {
++            FelineTheme {
++                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                     Box(contentAlignment = Alignment.Center) {
+-                        Text("The Feline Co.", style = MaterialTheme.typography.headlineMedium)
++                        Text(
++                            "The Feline Co.",
++                            style = MaterialTheme.typography.displayMedium,
++                            color = MaterialTheme.colorScheme.primary,
++                        )
+                     }
+                 }
+             }
+diff --git a/app/src/main/java/com/thefelineco/ui/theme/Theme.kt b/app/src/main/java/com/thefelineco/ui/theme/Theme.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..352cc5b3d12055f651590b534469202e0d04effc
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/theme/Theme.kt
+@@ -0,0 +1,139 @@
++package com.thefelineco.ui.theme
++
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.darkColorScheme
++import androidx.compose.material3.lightColorScheme
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.Immutable
++import androidx.compose.runtime.staticCompositionLocalOf
++import androidx.compose.ui.graphics.Color
++
++private val DarkColors = darkColorScheme(
++    primary = CrimsonBright,
++    onPrimary = Color.White,
++    primaryContainer = RubyDeep,
++    onPrimaryContainer = Blush,
++    secondary = Silver,
++    onSecondary = Charcoal,
++    secondaryContainer = CharcoalHighest,
++    onSecondaryContainer = Mist,
++    tertiary = Rose,
++    onTertiary = Onyx,
++    background = Onyx,
++    onBackground = Mist,
++    surface = Onyx,
++    onSurface = Mist,
++    surfaceVariant = CharcoalHigh,
++    onSurfaceVariant = Silver,
++    surfaceContainerLowest = OnyxDeep,
++    surfaceContainerLow = Color(0xFF141417),
++    surfaceContainer = Charcoal,
++    surfaceContainerHigh = CharcoalHigh,
++    surfaceContainerHighest = CharcoalHighest,
++    surfaceTint = CrimsonBright,
++    outline = Steel,
++    outlineVariant = Graphite,
++    error = Color(0xFFFF6B6B),
++    onError = Onyx,
++    errorContainer = Color(0xFF5C1111),
++    onErrorContainer = Blush,
++    inverseSurface = Mist,
++    inverseOnSurface = Charcoal,
++    inversePrimary = Crimson,
++    scrim = Color.Black,
++)
++
++private val LightColors = lightColorScheme(
++    primary = Color(0xFFB00D28),
++    onPrimary = Color.White,
++    primaryContainer = Blush,
++    onPrimaryContainer = RubyDeep,
++    secondary = Graphite,
++    onSecondary = Color.White,
++    secondaryContainer = Color(0xFFE4E1E3),
++    onSecondaryContainer = Charcoal,
++    tertiary = Ruby,
++    onTertiary = Color.White,
++    background = Paper,
++    onBackground = Charcoal,
++    surface = Paper,
++    onSurface = Charcoal,
++    surfaceVariant = Color(0xFFECE8E9),
++    onSurfaceVariant = Color(0xFF55525A),
++    surfaceContainerLowest = Color.White,
++    surfaceContainerLow = Color(0xFFFBF9F9),
++    surfaceContainer = Color(0xFFF2EFF0),
++    surfaceContainerHigh = Color(0xFFECE8E9),
++    surfaceContainerHighest = Color(0xFFE5E1E2),
++    surfaceTint = Crimson,
++    outline = Color(0xFF8A8590),
++    outlineVariant = Color(0xFFD2CDD0),
++    error = Color(0xFFBA1A1A),
++    onError = Color.White,
++    inverseSurface = Charcoal,
++    inverseOnSurface = Mist,
++    inversePrimary = Rose,
++)
++
++/** Brand colours that Material 3 has no slot for (status chips and so on). */
++@Immutable
++data class FelineExtendedColors(
++    val success: Color,
++    val onSuccessContainer: Color,
++    val successContainer: Color,
++    val warning: Color,
++    val warningContainer: Color,
++    val onWarningContainer: Color,
++    val brandCrimson: Color,
++    val heroScrim: Color,
++)
++
++private val DarkExtended = FelineExtendedColors(
++    success = Jade,
++    successContainer = Color(0xFF0F3322),
++    onSuccessContainer = Color(0xFFA6F0C6),
++    warning = Amber,
++    warningContainer = Color(0xFF3D2A08),
++    onWarningContainer = Color(0xFFFFDDA8),
++    brandCrimson = Crimson,
++    heroScrim = Onyx,
++)
++
++private val LightExtended = FelineExtendedColors(
++    success = JadeDark,
++    successContainer = Color(0xFFD5F5E3),
++    onSuccessContainer = Color(0xFF0B3D24),
++    warning = AmberDark,
++    warningContainer = Color(0xFFFFEBC7),
++    onWarningContainer = Color(0xFF4A2C00),
++    brandCrimson = Crimson,
++    heroScrim = Onyx,
++)
++
++val LocalFelineColors = staticCompositionLocalOf { DarkExtended }
++
++/**
++ * The Feline Co. theme. The brand is dark-first, so [darkTheme] defaults to true; the light
++ * scheme is still complete for users who prefer it.
++ */
++@Composable
++fun FelineTheme(
++    darkTheme: Boolean = true,
++    content: @Composable () -> Unit,
++) {
++    CompositionLocalProvider(LocalFelineColors provides if (darkTheme) DarkExtended else LightExtended) {
++        MaterialTheme(
++            colorScheme = if (darkTheme) DarkColors else LightColors,
++            typography = rememberFelineTypography(),
++            shapes = FelineShapes,
++            content = content,
++        )
++    }
++}
++
++/** Shortcut: `FelineTheme.colors.success` and so on. */
++object FelineTheme {
++    val colors: FelineExtendedColors
++        @Composable get() = LocalFelineColors.current
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/theme/Type.kt b/app/src/main/java/com/thefelineco/ui/theme/Type.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..066d5ede2cf0cbb7086675545b5337bc0dc09fca
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/theme/Type.kt
+@@ -0,0 +1,70 @@
++package com.thefelineco.ui.theme
++
++import android.annotation.SuppressLint
++import android.content.Context
++import androidx.compose.material3.Typography
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.TextStyle
++import androidx.compose.ui.text.font.Font
++import androidx.compose.ui.text.font.FontFamily
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.em
++import androidx.compose.ui.unit.sp
++
++/**
++ * Typography: an elegant serif for headlines and a soft rounded sans for everything else.
++ *
++ * The brand fonts (see ASSETS.md) are optional. They are looked up by name so the app still builds
++ * without them and falls back to the system serif and sans-serif.
++ */
++@Composable
++fun rememberFelineTypography(): Typography {
++    val context = LocalContext.current
++    return remember { felineTypography(context) }
++}
++
++private fun felineTypography(context: Context): Typography {
++    val display = context.fontFamilyOf("playfair_display_bold" to FontWeight.Bold) ?: FontFamily.Serif
++    val body = context.fontFamilyOf(
++        "nunito_regular" to FontWeight.Normal,
++        "nunito_bold" to FontWeight.Bold,
++    ) ?: FontFamily.SansSerif
++
++    fun displayStyle(size: Int, line: Int, spacing: Double = 0.0) = TextStyle(
++        fontFamily = display, fontWeight = FontWeight.Bold, fontSize = size.sp, lineHeight = line.sp,
++        letterSpacing = spacing.em,
++    )
++
++    fun bodyStyle(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Double = 0.0) = TextStyle(
++        fontFamily = body, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.em,
++    )
++
++    return Typography(
++        displayLarge = displayStyle(57, 64, -0.01),
++        displayMedium = displayStyle(45, 52),
++        displaySmall = displayStyle(36, 44),
++        headlineLarge = displayStyle(32, 40),
++        headlineMedium = displayStyle(28, 36),
++        headlineSmall = displayStyle(24, 32),
++        titleLarge = displayStyle(22, 28),
++        titleMedium = bodyStyle(16, 24, FontWeight.Bold, 0.01),
++        titleSmall = bodyStyle(14, 20, FontWeight.Bold, 0.01),
++        bodyLarge = bodyStyle(16, 24),
++        bodyMedium = bodyStyle(14, 20),
++        bodySmall = bodyStyle(12, 16),
++        labelLarge = bodyStyle(14, 20, FontWeight.Bold, 0.02),
++        labelMedium = bodyStyle(12, 16, FontWeight.Bold, 0.04),
++        labelSmall = bodyStyle(11, 16, FontWeight.Bold, 0.05),
++    )
++}
++
++/** Builds a family from the fonts in res/font that exist, or returns null if none of them do. */
++@SuppressLint("DiscouragedApi") // Lookup by name keeps the fonts optional.
++private fun Context.fontFamilyOf(vararg fonts: Pair<String, FontWeight>): FontFamily? {
++    val available = fonts.mapNotNull { (name, weight) ->
++        resources.getIdentifier(name, "font", packageName).takeIf { it != 0 }?.let { Font(it, weight) }
++    }
++    return if (available.isEmpty()) null else FontFamily(available)
++}

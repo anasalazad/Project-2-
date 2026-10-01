@@ -1,0 +1,89 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index 5daff7036e2353b89e7c623116b17b14f6decbed..dfcc7e4cbba5c9f2f2204fa722cb2c9ced22f44f 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -12,8 +12,10 @@ import com.thefelineco.ui.MainViewModel
+ import com.thefelineco.ui.adopt.AdoptViewModel
+ import com.thefelineco.ui.auth.LoginViewModel
+ import com.thefelineco.ui.auth.RegisterViewModel
++import com.thefelineco.ui.catdetail.CatDetailViewModel
+ import com.thefelineco.ui.home.HomeViewModel
+ import com.thefelineco.ui.navigation.AdoptRoute
++import com.thefelineco.ui.navigation.CatDetailRoute
+ 
+ /**
+  * Creates every ViewModel with its dependencies from [AppContainer].
+@@ -31,6 +33,13 @@ object AppViewModelProvider {
+             // Route arguments arrive through the SavedStateHandle of the navigation back stack entry.
+             AdoptViewModel(createSavedStateHandle().toRoute<AdoptRoute>().freeOnly, container().catRepository)
+         }
++        initializer {
++            CatDetailViewModel(
++                catId = createSavedStateHandle().toRoute<CatDetailRoute>().catId,
++                catRepository = container().catRepository,
++                userRepository = container().userRepository,
++            )
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..a561ab20ed725dbe6c88f34d555f5cfbbbc94b8d
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt
+@@ -0,0 +1,54 @@
++package com.thefelineco.ui.catdetail
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.CreditRules
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.Cat
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.stateIn
++
++data class CatDetailUiState(
++    val isLoading: Boolean = true,
++    val cat: Cat? = null,
++    val credits: Int = 0,
++    val isAdmin: Boolean = false,
++    val similar: List<Cat> = emptyList(),
++) {
++    val canAfford: Boolean get() = cat != null && CreditRules.canAfford(credits, cat.adoptionFee)
++    val creditsShort: Int get() = ((cat?.adoptionFee ?: 0) - credits).coerceAtLeast(0)
++    val canBook: Boolean get() = cat?.status == AdoptionStatus.AVAILABLE && canAfford && !isAdmin
++}
++
++/** One cat's profile, kept live so a status change (e.g. someone else booking) shows immediately. */
++class CatDetailViewModel(
++    catId: Long,
++    catRepository: CatRepository,
++    userRepository: UserRepository,
++) : ViewModel() {
++
++    val uiState: StateFlow<CatDetailUiState> = combine(
++        catRepository.observeCats(),
++        userRepository.currentUser,
++    ) { cats, user ->
++        val cat = cats.firstOrNull { it.id == catId }
++        CatDetailUiState(
++            isLoading = false,
++            cat = cat,
++            credits = user?.credits ?: 0,
++            isAdmin = user?.isAdmin == true,
++            // Other available cats of the same life stage: "You might also love".
++            similar = if (cat == null) emptyList() else cats
++                .filter { it.id != cat.id && it.status == AdoptionStatus.AVAILABLE && it.ageGroup == cat.ageGroup }
++                .take(SIMILAR_COUNT),
++        )
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatDetailUiState())
++
++    private companion object {
++        const val SIMILAR_COUNT = 8
++    }
++}

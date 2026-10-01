@@ -1,0 +1,191 @@
+diff --git a/app/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt b/app/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt
+index 376751f85dde037cd4d16dc28a60ef4c30d28f81..6df848a25137fbc2f287bb5e3e16d2fb8f9d5a62 100644
+--- a/app/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt
++++ b/app/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt
+@@ -8,6 +8,7 @@ import com.thefelineco.data.local.FelineDatabase
+ import com.thefelineco.data.local.seed.DatabaseSeeder
+ import com.thefelineco.data.local.seed.SeedData
+ import com.thefelineco.data.repository.OfflineBookingRepository
++import com.thefelineco.data.repository.OfflineCatRepository
+ import com.thefelineco.data.repository.OfflineShopRepository
+ import com.thefelineco.domain.CreditRules
+ import com.thefelineco.domain.model.AdoptionStatus
+@@ -123,6 +124,21 @@ class AdoptionAndShopFlowTest {
+         assertTrue(shop.observeCart(demoUserId).first().isEmpty())
+     }
+ 
++    @Test
++    fun favouritesToggleAndAreRemovedWithTheCat() = runTest {
++        val cats = OfflineCatRepository(db)
++        val mochi = catNamed("Mochi")
++        assertTrue(cats.toggleFavourite(demoUserId, mochi.id))
++        assertEquals(setOf(mochi.id), cats.observeFavouriteIds(demoUserId).first())
++
++        // Editing the cat (an upsert) must not drop the favourite.
++        cats.saveCat(cats.getCat(mochi.id)!!.copy(colour = "Cream"))
++        assertEquals(setOf(mochi.id), cats.observeFavouriteIds(demoUserId).first())
++
++        cats.deleteCat(mochi.id).getOrThrow()
++        assertTrue(cats.observeFavouriteIds(demoUserId).first().isEmpty())
++    }
++
+     @Test
+     fun basketCannotExceedStock() = runTest {
+         val outOfStock = shop.observeProducts().first().first { it.stock == 0 }
+diff --git a/app/src/main/java/com/thefelineco/data/local/FelineDatabase.kt b/app/src/main/java/com/thefelineco/data/local/FelineDatabase.kt
+index 5ae8803a2b8c23ff7cebb6115b2a62c80e29ff02..61a980c5ff8bb094f727414f2f0b09b37ed53b75 100644
+--- a/app/src/main/java/com/thefelineco/data/local/FelineDatabase.kt
++++ b/app/src/main/java/com/thefelineco/data/local/FelineDatabase.kt
+@@ -13,6 +13,7 @@ import com.thefelineco.data.local.entity.BookingEntity
+ import com.thefelineco.data.local.entity.CartItemEntity
+ import com.thefelineco.data.local.entity.CatEntity
+ import com.thefelineco.data.local.entity.CreditTransactionEntity
++import com.thefelineco.data.local.entity.FavouriteEntity
+ import com.thefelineco.data.local.entity.OrderEntity
+ import com.thefelineco.data.local.entity.OrderItemEntity
+ import com.thefelineco.data.local.entity.ProductEntity
+@@ -29,8 +30,10 @@ import com.thefelineco.data.local.entity.UserEntity
+         OrderEntity::class,
+         OrderItemEntity::class,
+         CreditTransactionEntity::class,
++        FavouriteEntity::class,
+     ],
+-    version = 1,
++    // v2: favourites table. Development builds wipe and re-seed on upgrade (see build()).
++    version = 2,
+     exportSchema = true,
+ )
+ @TypeConverters(Converters::class)
+diff --git a/app/src/main/java/com/thefelineco/data/local/dao/CatDao.kt b/app/src/main/java/com/thefelineco/data/local/dao/CatDao.kt
+index d728625cbd93ac04b4d732a63a029994d9dc1591..1e51e74791aaacbd21a8f28509fc0b5207439d3f 100644
+--- a/app/src/main/java/com/thefelineco/data/local/dao/CatDao.kt
++++ b/app/src/main/java/com/thefelineco/data/local/dao/CatDao.kt
+@@ -2,9 +2,11 @@ package com.thefelineco.data.local.dao
+ 
+ import androidx.room.Dao
+ import androidx.room.Insert
++import androidx.room.OnConflictStrategy
+ import androidx.room.Query
+ import androidx.room.Upsert
+ import com.thefelineco.data.local.entity.CatEntity
++import com.thefelineco.data.local.entity.FavouriteEntity
+ import com.thefelineco.domain.model.AdoptionStatus
+ import kotlinx.coroutines.flow.Flow
+ 
+@@ -33,4 +35,17 @@ interface CatDao {
+ 
+     @Query("SELECT COUNT(*) FROM cats")
+     suspend fun count(): Int
++
++    // Favourites
++    @Query("SELECT catId FROM favourites WHERE userId = :userId")
++    fun observeFavouriteIds(userId: Long): Flow<List<Long>>
++
++    @Query("SELECT COUNT(*) FROM favourites WHERE userId = :userId AND catId = :catId")
++    suspend fun isFavourite(userId: Long, catId: Long): Int
++
++    @Insert(onConflict = OnConflictStrategy.IGNORE)
++    suspend fun addFavourite(favourite: FavouriteEntity)
++
++    @Query("DELETE FROM favourites WHERE userId = :userId AND catId = :catId")
++    suspend fun removeFavourite(userId: Long, catId: Long)
+ }
+diff --git a/app/src/main/java/com/thefelineco/data/local/entity/Entities.kt b/app/src/main/java/com/thefelineco/data/local/entity/Entities.kt
+index a0b9d349862a4f1fd357b1ed847f905724644f5f..97479fcaeae08c5b7597898e2905d5beb28f2407 100644
+--- a/app/src/main/java/com/thefelineco/data/local/entity/Entities.kt
++++ b/app/src/main/java/com/thefelineco/data/local/entity/Entities.kt
+@@ -163,6 +163,29 @@ data class CreditTransactionEntity(
+     val createdAt: Long = System.currentTimeMillis(),
+ )
+ 
++/**
++ * A cat a customer has hearted. Deleting the cat removes its favourites (CASCADE).
++ * Cats are saved with @Upsert (insert-or-update), so editing a cat never triggers the cascade.
++ */
++@Entity(
++    tableName = "favourites",
++    primaryKeys = ["userId", "catId"],
++    indices = [Index("catId")],
++    foreignKeys = [
++        ForeignKey(
++            entity = CatEntity::class,
++            parentColumns = ["id"],
++            childColumns = ["catId"],
++            onDelete = ForeignKey.CASCADE,
++        ),
++    ],
++)
++data class FavouriteEntity(
++    val userId: Long,
++    val catId: Long,
++    val createdAt: Long = System.currentTimeMillis(),
++)
++
+ /** Result row of the basket query (cart line joined with its product). */
+ data class CartLine(
+     val productId: Long,
+diff --git a/app/src/main/java/com/thefelineco/data/repository/CatRepository.kt b/app/src/main/java/com/thefelineco/data/repository/CatRepository.kt
+index f4d7fac98cf187c636a60ce2bb04c6472d3492f0..c8976e09b5db6963d8cddd06af7cdb12638ec655 100644
+--- a/app/src/main/java/com/thefelineco/data/repository/CatRepository.kt
++++ b/app/src/main/java/com/thefelineco/data/repository/CatRepository.kt
+@@ -1,6 +1,8 @@
+ package com.thefelineco.data.repository
+ 
++import androidx.room.withTransaction
+ import com.thefelineco.data.local.FelineDatabase
++import com.thefelineco.data.local.entity.FavouriteEntity
+ import com.thefelineco.data.local.entity.toDomain
+ import com.thefelineco.data.local.entity.toEntity
+ import com.thefelineco.domain.model.AdoptionStatus
+@@ -18,6 +20,12 @@ interface CatRepository {
+     suspend fun saveCat(cat: Cat): Long
+     suspend fun deleteCat(id: Long): Result<Unit>
+     suspend fun setStatus(id: Long, status: AdoptionStatus)
++
++    /** Ids of the cats [userId] has hearted, updated live. */
++    fun observeFavouriteIds(userId: Long): Flow<Set<Long>>
++
++    /** Hearts the cat if it isn't a favourite yet, otherwise un-hearts it. Returns the new state. */
++    suspend fun toggleFavourite(userId: Long, catId: Long): Boolean
+ }
+ 
+ class OfflineCatRepository(private val db: FelineDatabase) : CatRepository {
+@@ -43,4 +51,17 @@ class OfflineCatRepository(private val db: FelineDatabase) : CatRepository {
+     }
+ 
+     override suspend fun setStatus(id: Long, status: AdoptionStatus) = catDao.updateStatus(id, status)
++
++    override fun observeFavouriteIds(userId: Long): Flow<Set<Long>> =
++        catDao.observeFavouriteIds(userId).map { it.toSet() }
++
++    override suspend fun toggleFavourite(userId: Long, catId: Long): Boolean = db.withTransaction {
++        if (catDao.isFavourite(userId, catId) > 0) {
++            catDao.removeFavourite(userId, catId)
++            false
++        } else {
++            catDao.addFavourite(FavouriteEntity(userId = userId, catId = catId))
++            true
++        }
++    }
+ }
+diff --git a/app/src/test/java/com/thefelineco/testing/Fakes.kt b/app/src/test/java/com/thefelineco/testing/Fakes.kt
+index a5d24982089a17820c7ee7b38498db875a39fbd2..6c4ef6bb4decd74b5db2a397a5b92231516cf1af 100644
+--- a/app/src/test/java/com/thefelineco/testing/Fakes.kt
++++ b/app/src/test/java/com/thefelineco/testing/Fakes.kt
+@@ -50,6 +50,16 @@ class FakeCatRepository(cats: List<Cat> = emptyList()) : CatRepository {
+     override suspend fun setStatus(id: Long, status: AdoptionStatus) {
+         cats.value = cats.value.map { if (it.id == id) it.copy(status = status) else it }
+     }
++
++    /** userId → favourite cat ids. */
++    val favourites = MutableStateFlow<Map<Long, Set<Long>>>(emptyMap())
++    override fun observeFavouriteIds(userId: Long): Flow<Set<Long>> = favourites.map { it[userId].orEmpty() }
++    override suspend fun toggleFavourite(userId: Long, catId: Long): Boolean {
++        val current = favourites.value[userId].orEmpty()
++        val nowFavourite = catId !in current
++        favourites.value = favourites.value + (userId to if (nowFavourite) current + catId else current - catId)
++        return nowFavourite
++    }
+ }
+ 
+ class FakeBookingRepository : BookingRepository {

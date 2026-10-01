@@ -1,0 +1,84 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index 33f17264f2b9ea7b03c16bc2ef8e2129e1863d82..9d8c1442324605809fb3f5b00bb2fc38739c5cc0 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -9,6 +9,7 @@ import com.thefelineco.FelineApplication
+ import com.thefelineco.ui.MainViewModel
+ import com.thefelineco.ui.auth.LoginViewModel
+ import com.thefelineco.ui.auth.RegisterViewModel
++import com.thefelineco.ui.home.HomeViewModel
+ 
+ /**
+  * Creates every ViewModel with its dependencies from [AppContainer].
+@@ -19,6 +20,9 @@ object AppViewModelProvider {
+         initializer { MainViewModel(container().userRepository, container().shopRepository) }
+         initializer { LoginViewModel(container().userRepository) }
+         initializer { RegisterViewModel(container().userRepository) }
++        initializer {
++            HomeViewModel(container().userRepository, container().catRepository, container().shopRepository)
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt b/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..8afdfbcec09ffbb1fc211efa2e56d39e39e50bef
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt
+@@ -0,0 +1,56 @@
++package com.thefelineco.ui.home
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.AgeGroup
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.Product
++import com.thefelineco.domain.model.User
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.stateIn
++
++data class HomeUiState(
++    val isLoading: Boolean = true,
++    val user: User? = null,
++    val newArrivals: List<Cat> = emptyList(),
++    val availableCount: Int = 0,
++    val freeCount: Int = 0,
++    val kittenCount: Int = 0,
++    val shopHighlights: List<Product> = emptyList(),
++)
++
++/** Builds the Home dashboard from live cat, product and user data. */
++class HomeViewModel(
++    userRepository: UserRepository,
++    catRepository: CatRepository,
++    shopRepository: ShopRepository,
++) : ViewModel() {
++
++    val uiState: StateFlow<HomeUiState> = combine(
++        userRepository.currentUser,
++        catRepository.observeCats(),
++        shopRepository.observeProducts(),
++    ) { user, cats, products ->
++        val available = cats.filter { it.status == AdoptionStatus.AVAILABLE }
++        HomeUiState(
++            isLoading = false,
++            user = user,
++            newArrivals = available.sortedByDescending { it.listedAt }.take(NEW_ARRIVALS),
++            availableCount = available.size,
++            freeCount = available.count { it.isFree },
++            kittenCount = available.count { it.ageGroup == AgeGroup.KITTEN },
++            shopHighlights = products.filter { it.inStock }.take(SHOP_HIGHLIGHTS),
++        )
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
++
++    private companion object {
++        const val NEW_ARRIVALS = 10
++        const val SHOP_HIGHLIGHTS = 8
++    }
++}

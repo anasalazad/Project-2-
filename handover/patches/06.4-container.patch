@@ -1,0 +1,130 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 516c00407171acd39dce32c30f89fbbdab81934f..f812eb12a667b04873b54bbb1e1e467fa7eb290a 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -2,6 +2,7 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ 
+     <application
++        android:name=".FelineApplication"
+         android:allowBackup="true"
+         android:icon="@mipmap/ic_launcher"
+         android:roundIcon="@mipmap/ic_launcher_round"
+diff --git a/app/src/main/java/com/thefelineco/FelineApplication.kt b/app/src/main/java/com/thefelineco/FelineApplication.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4743d079f10d6e241093058d53d48cc3b1908821
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/FelineApplication.kt
+@@ -0,0 +1,25 @@
++package com.thefelineco
++
++import android.app.Application
++import com.thefelineco.di.AppContainer
++import com.thefelineco.di.DefaultAppContainer
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.launch
++
++/** Application entry point. It owns the dependency container and seeds the database on first launch. */
++class FelineApplication : Application() {
++
++    lateinit var container: AppContainer
++        private set
++
++    /** Lives as long as the app process. Used for work that must outlive any single screen. */
++    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
++
++    override fun onCreate() {
++        super.onCreate()
++        container = DefaultAppContainer(this)
++        applicationScope.launch { container.seeder.seedIfEmpty() }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/data/repository/SettingsStore.kt b/app/src/main/java/com/thefelineco/data/repository/SettingsStore.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..780667a8d6683cc94429eb58f46f61d34d2d5674
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/data/repository/SettingsStore.kt
+@@ -0,0 +1,33 @@
++package com.thefelineco.data.repository
++
++import android.content.Context
++import androidx.datastore.core.DataStore
++import androidx.datastore.preferences.core.Preferences
++import androidx.datastore.preferences.core.booleanPreferencesKey
++import androidx.datastore.preferences.core.edit
++import androidx.datastore.preferences.preferencesDataStore
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.map
++
++private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
++
++/** Device-wide display preferences (not tied to an account). */
++interface SettingsStore {
++    /** True for the dark theme. The brand is dark-first, so this defaults to true. */
++    val darkTheme: Flow<Boolean>
++    suspend fun setDarkTheme(enabled: Boolean)
++}
++
++class DataStoreSettingsStore(context: Context) : SettingsStore {
++    private val store = context.applicationContext.settingsDataStore
++
++    override val darkTheme: Flow<Boolean> = store.data.map { it[DARK_THEME] ?: true }
++
++    override suspend fun setDarkTheme(enabled: Boolean) {
++        store.edit { it[DARK_THEME] = enabled }
++    }
++
++    private companion object {
++        val DARK_THEME = booleanPreferencesKey("dark_theme")
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/di/AppContainer.kt b/app/src/main/java/com/thefelineco/di/AppContainer.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd43953c8fc21dd21dd0da8447f6ab9ffe9eb9c0
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/di/AppContainer.kt
+@@ -0,0 +1,42 @@
++package com.thefelineco.di
++
++import android.content.Context
++import com.thefelineco.data.local.FelineDatabase
++import com.thefelineco.data.local.seed.DatabaseSeeder
++import com.thefelineco.data.repository.BookingRepository
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.DataStoreSessionStore
++import com.thefelineco.data.repository.DataStoreSettingsStore
++import com.thefelineco.data.repository.OfflineBookingRepository
++import com.thefelineco.data.repository.OfflineCatRepository
++import com.thefelineco.data.repository.OfflineShopRepository
++import com.thefelineco.data.repository.OfflineUserRepository
++import com.thefelineco.data.repository.SettingsStore
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++
++/**
++ * Manual dependency injection: one place that creates and shares the app's singletons.
++ * Every activity reaches it through [com.thefelineco.FelineApplication.container].
++ */
++interface AppContainer {
++    val userRepository: UserRepository
++    val catRepository: CatRepository
++    val bookingRepository: BookingRepository
++    val shopRepository: ShopRepository
++    val settingsStore: SettingsStore
++    val seeder: DatabaseSeeder
++}
++
++class DefaultAppContainer(context: Context) : AppContainer {
++    private val database: FelineDatabase by lazy { FelineDatabase.build(context) }
++
++    override val userRepository: UserRepository by lazy {
++        OfflineUserRepository(database, DataStoreSessionStore(context))
++    }
++    override val catRepository: CatRepository by lazy { OfflineCatRepository(database) }
++    override val bookingRepository: BookingRepository by lazy { OfflineBookingRepository(database) }
++    override val shopRepository: ShopRepository by lazy { OfflineShopRepository(database) }
++    override val settingsStore: SettingsStore by lazy { DataStoreSettingsStore(context) }
++    override val seeder: DatabaseSeeder by lazy { DatabaseSeeder(database) }
++}

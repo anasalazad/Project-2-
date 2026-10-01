@@ -1,0 +1,54 @@
+diff --git a/app/src/main/java/com/thefelineco/ui/theme/Color.kt b/app/src/main/java/com/thefelineco/ui/theme/Color.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..318008e60cd36ef4ac599dd38f49abbb9435e19e
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/theme/Color.kt
+@@ -0,0 +1,28 @@
++package com.thefelineco.ui.theme
++
++import androidx.compose.ui.graphics.Color
++
++// Brand palette: red, gray and black. See CONTEXT.md §7.
++val Onyx = Color(0xFF0E0E10)
++val OnyxDeep = Color(0xFF0A0A0C)
++val Charcoal = Color(0xFF1A1A1E)
++val CharcoalHigh = Color(0xFF232328)
++val CharcoalHighest = Color(0xFF2C2C32)
++val Graphite = Color(0xFF3A3A42)
++val Steel = Color(0xFF5A5A64)
++val Silver = Color(0xFFB8B8C0)
++val Mist = Color(0xFFE6E6EA)
++val Paper = Color(0xFFF7F5F5)
++
++val Crimson = Color(0xFFC8102E)
++val CrimsonBright = Color(0xFFE11D3F)
++val Ruby = Color(0xFF8E0B20)
++val RubyDeep = Color(0xFF4A0611)
++val Rose = Color(0xFFFF5A6E)
++val Blush = Color(0xFFFFD9DC)
++
++// Status colours (muted so they sit well next to the crimson)
++val Jade = Color(0xFF3DBE7A)
++val JadeDark = Color(0xFF1E7A4B)
++val Amber = Color(0xFFF2A93B)
++val AmberDark = Color(0xFF9A5B00)
+diff --git a/app/src/main/java/com/thefelineco/ui/theme/Shape.kt b/app/src/main/java/com/thefelineco/ui/theme/Shape.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa8f9d9dfe1220c7045505474685e2a805cabba6
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/theme/Shape.kt
+@@ -0,0 +1,14 @@
++package com.thefelineco.ui.theme
++
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.Shapes
++import androidx.compose.ui.unit.dp
++
++/** Generous, soft corners give a friendly but premium feel. */
++val FelineShapes = Shapes(
++    extraSmall = RoundedCornerShape(8.dp),
++    small = RoundedCornerShape(12.dp),
++    medium = RoundedCornerShape(18.dp),
++    large = RoundedCornerShape(24.dp),
++    extraLarge = RoundedCornerShape(32.dp),
++)

@@ -5,7 +5,7 @@ set -u
 cd "$(dirname "$0")"
 GRADLE="${GRADLE:-gradle}"
 for attempt in 1 2 3 4; do
-  "$GRADLE" test --no-daemon -q --max-workers=1 > build-output.txt 2>&1
+  "$GRADLE" compileDeviceTestKotlin test --no-daemon -q --max-workers=1 > build-output.txt 2>&1
   status=$?
   grep -q "429\|Could not GET\|Could not download" build-output.txt || break
   echo "Download problem, retrying ($attempt)..."; sleep $((attempt * 10))

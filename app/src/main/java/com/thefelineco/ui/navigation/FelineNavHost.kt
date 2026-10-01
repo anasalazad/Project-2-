@@ -10,29 +10,29 @@ import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.thefelineco.domain.model.Booking
+import com.thefelineco.domain.model.DeliveryMethod
+import com.thefelineco.domain.model.Order
 import com.thefelineco.domain.model.User
-import com.thefelineco.ui.adopt.AdoptScreen
-import com.thefelineco.ui.catdetail.CatDetailScreen
 import com.thefelineco.ui.admin.AdminBookingsScreen
 import com.thefelineco.ui.admin.AdminCatsScreen
 import com.thefelineco.ui.admin.AdminDashboardScreen
 import com.thefelineco.ui.admin.AdminProductsScreen
 import com.thefelineco.ui.admin.CatFormScreen
 import com.thefelineco.ui.admin.ProductFormScreen
-import com.thefelineco.ui.common.LocalSnackbarHostState
-import kotlinx.coroutines.launch
-import com.thefelineco.domain.model.Booking
-import com.thefelineco.domain.model.DeliveryMethod
-import com.thefelineco.domain.model.Order
+import com.thefelineco.ui.adopt.AdoptScreen
 import com.thefelineco.ui.basket.BasketScreen
-import com.thefelineco.ui.checkout.CheckoutContract
-import com.thefelineco.ui.profile.ProfileScreen
-import com.thefelineco.ui.shop.ShopScreen
 import com.thefelineco.ui.booking.BookMeetAndGreet
 import com.thefelineco.ui.bookings.BookingsScreen
+import com.thefelineco.ui.catdetail.CatDetailScreen
+import com.thefelineco.ui.checkout.CheckoutContract
+import com.thefelineco.ui.common.LocalSnackbarHostState
 import com.thefelineco.ui.common.formatLong
 import com.thefelineco.ui.components.SuccessDialog
 import com.thefelineco.ui.home.HomeScreen
+import com.thefelineco.ui.profile.ProfileScreen
+import com.thefelineco.ui.shop.ShopScreen
+import kotlinx.coroutines.launch
 
 /** Every in-app screen for a signed-in user. Secondary activities are launched from these screens. */
 @Composable
@@ -41,7 +41,7 @@ fun FelineNavHost(
     user: User,
     onLogout: () -> Unit,
 ) {
-    // Lives as long as the NavHost, so a message survives the form screen closing.
+    // Lives as long as the NavHost, so a message survives the screen that triggered it closing.
     val snackbar = LocalSnackbarHostState.current
     val scope = rememberCoroutineScope()
     val finishForm: (String) -> Unit = { message ->

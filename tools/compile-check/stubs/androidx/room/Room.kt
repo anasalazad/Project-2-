@@ -20,12 +20,15 @@ annotation class TypeConverter
 annotation class TypeConverters(vararg val value: KClass<*>)
 annotation class Database(val entities: Array<KClass<*>> = [], val version: Int, val exportSchema: Boolean = true)
 abstract class RoomDatabase {
+    fun close() {}
     class Builder<T : RoomDatabase> {
         fun fallbackToDestructiveMigration(): Builder<T> = this
+        fun allowMainThreadQueries(): Builder<T> = this
         fun build(): T = TODO()
     }
 }
 object Room {
     fun <T : RoomDatabase> databaseBuilder(context: Context, klass: Class<T>, name: String?): RoomDatabase.Builder<T> = TODO()
+    fun <T : RoomDatabase> inMemoryDatabaseBuilder(context: Context, klass: Class<T>): RoomDatabase.Builder<T> = TODO()
 }
 suspend fun <R> RoomDatabase.withTransaction(block: suspend () -> R): R = block()

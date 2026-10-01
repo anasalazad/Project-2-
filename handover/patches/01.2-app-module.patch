@@ -1,0 +1,184 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+new file mode 100644
+index 0000000000000000000000000000000000000000..6d7a6bd267bf4170223c8294d48302a8e6b5037a
+--- /dev/null
++++ b/app/build.gradle.kts
+@@ -0,0 +1,59 @@
++import org.jetbrains.kotlin.gradle.dsl.JvmTarget
++
++plugins {
++    alias(libs.plugins.android.application)
++    alias(libs.plugins.kotlin.android)
++    alias(libs.plugins.kotlin.compose)
++}
++
++android {
++    namespace = "com.thefelineco"
++    compileSdk = 35
++
++    defaultConfig {
++        applicationId = "com.thefelineco"
++        minSdk = 26
++        targetSdk = 35
++        versionCode = 1
++        versionName = "1.0"
++
++        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
++    }
++
++    buildTypes {
++        release {
++            isMinifyEnabled = false
++            proguardFiles(
++                getDefaultProguardFile("proguard-android-optimize.txt"),
++                "proguard-rules.pro"
++            )
++        }
++    }
++    compileOptions {
++        sourceCompatibility = JavaVersion.VERSION_17
++        targetCompatibility = JavaVersion.VERSION_17
++    }
++    buildFeatures {
++        compose = true
++    }
++}
++
++kotlin {
++    compilerOptions {
++        jvmTarget.set(JvmTarget.JVM_17)
++    }
++}
++
++dependencies {
++    implementation(libs.androidx.core.ktx)
++    implementation(libs.androidx.lifecycle.runtime.ktx)
++    implementation(libs.androidx.activity.compose)
++
++    implementation(platform(libs.androidx.compose.bom))
++    implementation(libs.androidx.ui)
++    implementation(libs.androidx.ui.graphics)
++    implementation(libs.androidx.ui.tooling.preview)
++    implementation(libs.androidx.material3)
++
++    debugImplementation(libs.androidx.ui.tooling)
++}
+diff --git a/app/proguard-rules.pro b/app/proguard-rules.pro
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cc00d93a058af4789ccc3613d03a605dea99f24
+--- /dev/null
++++ b/app/proguard-rules.pro
+@@ -0,0 +1 @@
++# Project-specific ProGuard rules. Minification is disabled for this project.
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..516c00407171acd39dce32c30f89fbbdab81934f
+--- /dev/null
++++ b/app/src/main/AndroidManifest.xml
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++
++    <application
++        android:allowBackup="true"
++        android:icon="@mipmap/ic_launcher"
++        android:roundIcon="@mipmap/ic_launcher_round"
++        android:label="@string/app_name"
++        android:supportsRtl="true"
++        android:theme="@style/Theme.FelineCo">
++
++        <activity
++            android:name=".MainActivity"
++            android:exported="true"
++            android:windowSoftInputMode="adjustResize">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++        </activity>
++
++    </application>
++
++</manifest>
+diff --git a/app/src/main/java/com/thefelineco/MainActivity.kt b/app/src/main/java/com/thefelineco/MainActivity.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ffef0fc712de32c4c6368fb56db9c2560696225
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/MainActivity.kt
+@@ -0,0 +1,30 @@
++package com.thefelineco
++
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.compose.setContent
++import androidx.activity.enableEdgeToEdge
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++
++/** Entry point. For now it only proves the Compose setup works. */
++class MainActivity : ComponentActivity() {
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        enableEdgeToEdge()
++        setContent {
++            MaterialTheme {
++                Surface(Modifier.fillMaxSize()) {
++                    Box(contentAlignment = Alignment.Center) {
++                        Text("The Feline Co.", style = MaterialTheme.typography.headlineMedium)
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/res/values-night/themes.xml b/app/src/main/res/values-night/themes.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..695e21862d06d655a0798a9aae7b06654600c79e
+--- /dev/null
++++ b/app/src/main/res/values-night/themes.xml
+@@ -0,0 +1,5 @@
++<resources>
++    <style name="Theme.FelineCo" parent="android:Theme.Material.NoActionBar">
++        <item name="android:windowBackground">@color/onyx</item>
++    </style>
++</resources>
+diff --git a/app/src/main/res/values/colors.xml b/app/src/main/res/values/colors.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b785f3660a3509c272091bc6933898e81adec262
+--- /dev/null
++++ b/app/src/main/res/values/colors.xml
+@@ -0,0 +1,8 @@
++<resources>
++    <!-- Only used by XML resources (window background, launcher icon). Compose colours live in ui/theme/Color.kt -->
++    <color name="onyx">#FF0E0E10</color>
++    <color name="paper">#FFF7F5F5</color>
++    <color name="crimson">#FFC8102E</color>
++    <color name="silver">#FFE6E6EA</color>
++    <color name="ic_launcher_background">#FF0E0E10</color>
++</resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..94bd38e2860077b56c15e26069e0b1706007c454
+--- /dev/null
++++ b/app/src/main/res/values/strings.xml
+@@ -0,0 +1,3 @@
++<resources>
++    <string name="app_name">The Feline Co.</string>
++</resources>
+diff --git a/app/src/main/res/values/themes.xml b/app/src/main/res/values/themes.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c8395d6c9e136bc21acd86aab22a7632c63fe208
+--- /dev/null
++++ b/app/src/main/res/values/themes.xml
+@@ -0,0 +1,6 @@
++<resources>
++    <!-- Base window theme. Everything visible is drawn by Compose (see ui/theme/Theme.kt). -->
++    <style name="Theme.FelineCo" parent="android:Theme.Material.Light.NoActionBar">
++        <item name="android:windowBackground">@color/paper</item>
++    </style>
++</resources>

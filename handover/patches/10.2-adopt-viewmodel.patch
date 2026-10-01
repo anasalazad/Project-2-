@@ -1,0 +1,336 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 195f78616f7bb0760efea7b09f5f628e1be4a519..fa148f38f207600370e597fe093f375b914b2535 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -78,6 +78,7 @@ dependencies {
+     implementation(libs.coil.compose)
+ 
+     testImplementation(libs.junit)
++    testImplementation(libs.kotlinx.coroutines.test)
+ 
+     androidTestImplementation(libs.androidx.junit)
+     androidTestImplementation(libs.androidx.espresso.core)
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index 9d8c1442324605809fb3f5b00bb2fc38739c5cc0..5daff7036e2353b89e7c623116b17b14f6decbed 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -2,14 +2,18 @@ package com.thefelineco.di
+ 
+ import androidx.lifecycle.ViewModelProvider
+ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
++import androidx.lifecycle.createSavedStateHandle
+ import androidx.lifecycle.viewmodel.CreationExtras
+ import androidx.lifecycle.viewmodel.initializer
+ import androidx.lifecycle.viewmodel.viewModelFactory
++import androidx.navigation.toRoute
+ import com.thefelineco.FelineApplication
+ import com.thefelineco.ui.MainViewModel
++import com.thefelineco.ui.adopt.AdoptViewModel
+ import com.thefelineco.ui.auth.LoginViewModel
+ import com.thefelineco.ui.auth.RegisterViewModel
+ import com.thefelineco.ui.home.HomeViewModel
++import com.thefelineco.ui.navigation.AdoptRoute
+ 
+ /**
+  * Creates every ViewModel with its dependencies from [AppContainer].
+@@ -23,6 +27,10 @@ object AppViewModelProvider {
+         initializer {
+             HomeViewModel(container().userRepository, container().catRepository, container().shopRepository)
+         }
++        initializer {
++            // Route arguments arrive through the SavedStateHandle of the navigation back stack entry.
++            AdoptViewModel(createSavedStateHandle().toRoute<AdoptRoute>().freeOnly, container().catRepository)
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt b/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f29d5ee833afbad3531ba9dce34d8bae722d933
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt
+@@ -0,0 +1,82 @@
++package com.thefelineco.ui.adopt
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.domain.CatQuery
++import com.thefelineco.domain.CatSort
++import com.thefelineco.domain.model.AgeGroup
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CoatLength
++import com.thefelineco.domain.model.Sex
++import com.thefelineco.ui.common.toggle
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.flow.update
++
++data class AdoptUiState(
++    val isLoading: Boolean = true,
++    val query: CatQuery = CatQuery(),
++    val results: List<Cat> = emptyList(),
++    /** Cats visible before filters (i.e. not adopted), for "12 of 22". */
++    val totalCount: Int = 0,
++)
++
++/** Everything the user can do on the Adopt screen. */
++sealed interface AdoptEvent {
++    data class SearchChanged(val text: String) : AdoptEvent
++    data class ToggleAgeGroup(val group: AgeGroup) : AdoptEvent
++    data class ToggleSex(val sex: Sex) : AdoptEvent
++    data class ToggleCoat(val coat: CoatLength) : AdoptEvent
++    data object ToggleKids : AdoptEvent
++    data object ToggleCats : AdoptEvent
++    data object ToggleDogs : AdoptEvent
++    data object ToggleFreeOnly : AdoptEvent
++    data class SortChanged(val sort: CatSort) : AdoptEvent
++    data object ClearFilters : AdoptEvent
++}
++
++/**
++ * Search, filter and sort for the cat listings. The query is plain state, and results are
++ * recalculated whenever the query or the underlying cats change (so an admin's edit or a new
++ * booking shows up live).
++ *
++ * @param initialFreeOnly true when opened from the "Older cats adopt for free" banner.
++ */
++class AdoptViewModel(
++    initialFreeOnly: Boolean,
++    catRepository: CatRepository,
++) : ViewModel() {
++
++    private val query = MutableStateFlow(CatQuery(freeOnly = initialFreeOnly))
++
++    val uiState: StateFlow<AdoptUiState> = combine(catRepository.observeCats(), query) { cats, q ->
++        AdoptUiState(
++            isLoading = false,
++            query = q,
++            results = q.apply(cats),
++            totalCount = cats.count { it.status in q.statuses },
++        )
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdoptUiState(query = query.value))
++
++    fun onEvent(event: AdoptEvent) {
++        query.update { q ->
++            when (event) {
++                is AdoptEvent.SearchChanged -> q.copy(text = event.text)
++                is AdoptEvent.ToggleAgeGroup -> q.copy(ageGroups = q.ageGroups.toggle(event.group))
++                is AdoptEvent.ToggleSex -> q.copy(sexes = q.sexes.toggle(event.sex))
++                is AdoptEvent.ToggleCoat -> q.copy(coats = q.coats.toggle(event.coat))
++                AdoptEvent.ToggleKids -> q.copy(goodWithKids = !q.goodWithKids)
++                AdoptEvent.ToggleCats -> q.copy(goodWithCats = !q.goodWithCats)
++                AdoptEvent.ToggleDogs -> q.copy(goodWithDogs = !q.goodWithDogs)
++                AdoptEvent.ToggleFreeOnly -> q.copy(freeOnly = !q.freeOnly)
++                is AdoptEvent.SortChanged -> q.copy(sort = event.sort)
++                // Keep the search text and sort order; only reset the filters.
++                AdoptEvent.ClearFilters -> CatQuery(text = q.text, sort = q.sort)
++            }
++        }
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/testing/Fakes.kt b/app/src/test/java/com/thefelineco/testing/Fakes.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d24982089a17820c7ee7b38498db875a39fbd2
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/testing/Fakes.kt
+@@ -0,0 +1,92 @@
++package com.thefelineco.testing
++
++import com.thefelineco.data.repository.BookingRepository
++import com.thefelineco.data.repository.CatRepository
++import com.thefelineco.data.repository.FelineException
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.Booking
++import com.thefelineco.domain.model.CartItem
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CreditTransaction
++import com.thefelineco.domain.model.Order
++import com.thefelineco.domain.model.Product
++import com.thefelineco.domain.model.User
++import com.thefelineco.domain.model.UserRole
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.map
++
++/*
++ * In-memory fakes of the repositories, so ViewModels can be tested without a database.
++ * Each one records what it was asked to do.
++ */
++
++val testUser = User(id = 7, fullName = "Jordan Lee", email = "jordan@example.com", role = UserRole.CUSTOMER, credits = 400)
++
++class FakeUserRepository(user: User? = testUser) : UserRepository {
++    val user = MutableStateFlow(user)
++    override val currentUser: Flow<User?> = this.user
++    override suspend fun login(email: String, password: String): Result<User> = Result.failure(FelineException("not used"))
++    override suspend fun register(fullName: String, email: String, password: String): Result<User> =
++        Result.failure(FelineException("not used"))
++    override suspend fun logout() { user.value = null }
++    override fun observeTransactions(userId: Long): Flow<List<CreditTransaction>> = flowOf(emptyList())
++}
++
++class FakeCatRepository(cats: List<Cat> = emptyList()) : CatRepository {
++    val cats = MutableStateFlow(cats)
++    override fun observeCats(): Flow<List<Cat>> = cats
++    override fun observeCat(id: Long): Flow<Cat?> = cats.map { list -> list.firstOrNull { it.id == id } }
++    override suspend fun getCat(id: Long): Cat? = cats.value.firstOrNull { it.id == id }
++    override suspend fun saveCat(cat: Cat): Long {
++        val id = if (cat.id == 0L) (cats.value.maxOfOrNull { it.id } ?: 0) + 1 else cat.id
++        cats.value = cats.value.filterNot { it.id == id } + cat.copy(id = id)
++        return id
++    }
++    override suspend fun deleteCat(id: Long): Result<Unit> = runCatching { cats.value = cats.value.filterNot { it.id == id } }
++    override suspend fun setStatus(id: Long, status: AdoptionStatus) {
++        cats.value = cats.value.map { if (it.id == id) it.copy(status = status) else it }
++    }
++}
++
++class FakeBookingRepository : BookingRepository {
++    val requested = mutableListOf<Booking>()
++    var takenSlots: Map<Long, Set<String>> = emptyMap()
++    var failWith: String? = null
++
++    override fun observeBookingsForUser(userId: Long): Flow<List<Booking>> = flowOf(requested.filter { it.userId == userId })
++    override fun observeAllBookings(): Flow<List<Booking>> = flowOf(requested)
++    override suspend fun takenSlots(epochDay: Long): Set<String> = takenSlots[epochDay].orEmpty()
++    override suspend fun requestBooking(booking: Booking): Result<Booking> {
++        failWith?.let { return Result.failure(FelineException(it)) }
++        val saved = booking.copy(id = requested.size + 1L)
++        requested += saved
++        return Result.success(saved)
++    }
++    override suspend fun cancel(bookingId: Long): Result<Unit> = Result.success(Unit)
++    override suspend fun decline(bookingId: Long): Result<Unit> = Result.success(Unit)
++    override suspend fun confirm(bookingId: Long): Result<Unit> = Result.success(Unit)
++    override suspend fun completeAdoption(bookingId: Long): Result<Unit> = Result.success(Unit)
++}
++
++class FakeShopRepository(products: List<Product> = emptyList()) : ShopRepository {
++    val products = MutableStateFlow(products)
++    val placedOrders = mutableListOf<Order>()
++
++    override fun observeProducts(): Flow<List<Product>> = products
++    override fun observeProduct(id: Long): Flow<Product?> = products.map { list -> list.firstOrNull { it.id == id } }
++    override suspend fun saveProduct(product: Product): Long = product.id
++    override suspend fun deleteProduct(id: Long) = Unit
++    override fun observeCart(userId: Long): Flow<List<CartItem>> = flowOf(emptyList())
++    override suspend fun addToCart(userId: Long, productId: Long, quantity: Int): Result<Unit> = Result.success(Unit)
++    override suspend fun setCartQuantity(userId: Long, productId: Long, quantity: Int): Result<Unit> = Result.success(Unit)
++    override suspend fun checkout(order: Order): Result<Order> {
++        val placed = order.copy(id = placedOrders.size + 1L)
++        placedOrders += placed
++        return Result.success(placed)
++    }
++    override fun observeOrders(userId: Long): Flow<List<Order>> = flowOf(placedOrders)
++}
+diff --git a/app/src/test/java/com/thefelineco/testing/MainDispatcherRule.kt b/app/src/test/java/com/thefelineco/testing/MainDispatcherRule.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..37a9ead1b02d319c8869d07bc3915d7d26a5399d
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/testing/MainDispatcherRule.kt
+@@ -0,0 +1,17 @@
++package com.thefelineco.testing
++
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.test.TestDispatcher
++import kotlinx.coroutines.test.UnconfinedTestDispatcher
++import kotlinx.coroutines.test.resetMain
++import kotlinx.coroutines.test.setMain
++import org.junit.rules.TestWatcher
++import org.junit.runner.Description
++
++/** Replaces Dispatchers.Main (used by viewModelScope) with a test dispatcher for each test. */
++@OptIn(ExperimentalCoroutinesApi::class)
++class MainDispatcherRule(val dispatcher: TestDispatcher = UnconfinedTestDispatcher()) : TestWatcher() {
++    override fun starting(description: Description) = Dispatchers.setMain(dispatcher)
++    override fun finished(description: Description) = Dispatchers.resetMain()
++}
+diff --git a/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt b/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b2978d7d4c937fec41dada5c69971ffa5850dd7
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt
+@@ -0,0 +1,75 @@
++package com.thefelineco.ui
++
++import com.thefelineco.domain.model.AgeGroup
++import com.thefelineco.domain.testCat
++import com.thefelineco.testing.FakeCatRepository
++import com.thefelineco.testing.MainDispatcherRule
++import com.thefelineco.ui.adopt.AdoptEvent
++import com.thefelineco.ui.adopt.AdoptViewModel
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.test.UnconfinedTestDispatcher
++import kotlinx.coroutines.test.runTest
++import org.junit.Assert.assertEquals
++import org.junit.Rule
++import org.junit.Test
++
++@OptIn(ExperimentalCoroutinesApi::class)
++class AdoptViewModelTest {
++    @get:Rule val mainRule = MainDispatcherRule()
++
++    private val repo = FakeCatRepository(
++        listOf(
++            testCat(id = 1, name = "Mochi", ageMonths = 3, listedAt = 3),
++            testCat(id = 2, name = "Luna", ageMonths = 10, listedAt = 2),
++            testCat(id = 3, name = "Archie", ageMonths = 156, listedAt = 1),
++        )
++    )
++
++    /** Keeps the WhileSubscribed state flow active for the test. */
++    private fun kotlinx.coroutines.test.TestScope.subscribe(vm: AdoptViewModel) =
++        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
++
++    private fun AdoptViewModel.names() = uiState.value.results.map { it.name }
++
++    @Test
++    fun `opening from the free banner shows only free cats`() = runTest {
++        val vm = AdoptViewModel(initialFreeOnly = true, catRepository = repo)
++        subscribe(vm)
++        assertEquals(listOf("Archie"), vm.names())
++    }
++
++    @Test
++    fun `search and filters update the results`() = runTest {
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        subscribe(vm)
++        assertEquals(listOf("Mochi", "Luna", "Archie"), vm.names())
++
++        vm.onEvent(AdoptEvent.ToggleAgeGroup(AgeGroup.KITTEN))
++        assertEquals(listOf("Mochi"), vm.names())
++
++        vm.onEvent(AdoptEvent.ToggleAgeGroup(AgeGroup.KITTEN))
++        vm.onEvent(AdoptEvent.SearchChanged("lu"))
++        assertEquals(listOf("Luna"), vm.names())
++    }
++
++    @Test
++    fun `clearing filters keeps the search text`() = runTest {
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        subscribe(vm)
++        vm.onEvent(AdoptEvent.SearchChanged("a"))
++        vm.onEvent(AdoptEvent.ToggleFreeOnly)
++        vm.onEvent(AdoptEvent.ClearFilters)
++        assertEquals("a", vm.uiState.value.query.text)
++        assertEquals(0, vm.uiState.value.query.activeFilterCount)
++    }
++
++    @Test
++    fun `new listings appear without reloading`() = runTest {
++        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
++        subscribe(vm)
++        repo.cats.value = repo.cats.value + testCat(id = 4, name = "Nala", listedAt = 9)
++        assertEquals("Nala", vm.names().first())
++        assertEquals(4, vm.uiState.value.totalCount)
++    }
++}

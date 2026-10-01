@@ -15,11 +15,17 @@ plugins {
     kotlin("plugin.serialization") version "2.1.0"
 }
 repositories { mavenCentral() }
+val appRoot: String = (findProperty("appRoot") as String?) ?: "../.."
 sourceSets {
     main {
-        kotlin.srcDirs("stubs", "../../app/src/main/java")
+        kotlin.srcDirs("stubs", "$appRoot/app/src/main/java")
     }
-    test { kotlin.srcDirs("../../app/src/test/java") }
+    test { kotlin.srcDirs("$appRoot/app/src/test/java") }
+    // Instrumented tests are compiled (not run) to catch mistakes early.
+    create("deviceTest") {
+        kotlin.srcDirs("stubs-test", "$appRoot/app/src/androidTest/java")
+        compileClasspath += main.get().output + configurations["testCompileClasspath"]
+    }
 }
 tasks.test { testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL } }
 kotlin {
@@ -45,4 +51,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.compose.ui:ui-test-junit4-desktop:1.7.3")
 }

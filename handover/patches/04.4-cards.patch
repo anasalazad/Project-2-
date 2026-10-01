@@ -1,0 +1,310 @@
+diff --git a/app/src/main/java/com/thefelineco/ui/components/CatCard.kt b/app/src/main/java/com/thefelineco/ui/components/CatCard.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..59c99893cde3686d10c7a84ca5a88ff59413211a
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/components/CatCard.kt
+@@ -0,0 +1,105 @@
++package com.thefelineco.ui.components
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.aspectRatio
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Female
++import androidx.compose.material.icons.filled.Male
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.Sex
++import com.thefelineco.ui.theme.Mist
++import com.thefelineco.ui.theme.Onyx
++import com.thefelineco.ui.theme.Silver
++
++/**
++ * Portrait photo card for a cat: fee badge in the corner, name and details over a dark gradient.
++ * Used on Home (carousel) and Adopt (grid).
++ */
++@Composable
++fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
++    val sexLabel = cat.sex.label
++    val feeLabel = if (cat.isFree) "free to adopt" else "${cat.adoptionFee} credits"
++    Card(
++        onClick = onClick,
++        shape = MaterialTheme.shapes.large,
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
++        modifier = modifier.semantics(mergeDescendants = true) {
++            contentDescription = "${cat.name}, ${cat.breed}, ${cat.ageLabel}, $sexLabel, $feeLabel"
++        },
++    ) {
++        Box(Modifier.fillMaxWidth().aspectRatio(0.78f)) {
++            AssetImage(
++                name = cat.imageName,
++                contentDescription = null,
++                placeholderLabel = null,
++                modifier = Modifier.fillMaxSize(),
++            )
++            // Dark gradient so white text is readable on any photo.
++            Box(
++                Modifier
++                    .fillMaxSize()
++                    .background(
++                        Brush.verticalGradient(
++                            0.45f to Color.Transparent,
++                            1f to Onyx.copy(alpha = 0.92f),
++                        )
++                    )
++            )
++            FeeBadge(cat.adoptionFee, Modifier.align(Alignment.TopStart).padding(12.dp))
++            if (cat.status != AdoptionStatus.AVAILABLE) {
++                AdoptionStatusChip(cat.status, Modifier.align(Alignment.TopEnd).padding(12.dp))
++            }
++            Column(
++                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),
++                verticalArrangement = Arrangement.spacedBy(2.dp),
++            ) {
++                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
++                    Text(
++                        cat.name,
++                        style = MaterialTheme.typography.headlineSmall,
++                        color = Mist,
++                        maxLines = 1,
++                        overflow = TextOverflow.Ellipsis,
++                        modifier = Modifier.weight(1f, fill = false),
++                    )
++                    Icon(
++                        if (cat.sex == Sex.MALE) Icons.Filled.Male else Icons.Filled.Female,
++                        contentDescription = null,
++                        tint = MaterialTheme.colorScheme.primary,
++                        modifier = Modifier.size(20.dp),
++                    )
++                }
++                Text(
++                    "${cat.breed} · ${cat.ageLabel}",
++                    style = MaterialTheme.typography.bodyMedium,
++                    color = Silver,
++                    maxLines = 1,
++                    overflow = TextOverflow.Ellipsis,
++                )
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/components/ComponentPreviews.kt b/app/src/main/java/com/thefelineco/ui/components/ComponentPreviews.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..417430b4d4bdaa3476c800aea70b43153c3532ca
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/components/ComponentPreviews.kt
+@@ -0,0 +1,92 @@
++package com.thefelineco.ui.components
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.tooling.preview.Preview
++import androidx.compose.ui.unit.dp
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.BookingStatus
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CoatLength
++import com.thefelineco.domain.model.Product
++import com.thefelineco.domain.model.ProductCategory
++import com.thefelineco.domain.model.Sex
++import com.thefelineco.ui.theme.FelineTheme
++
++/*
++ * Android Studio previews for the reusable components, so they can be checked in the Design pane
++ * without running the app. Photos aren't available in previews, so the branded placeholder shows.
++ */
++
++private val previewKitten = Cat(
++    id = 1, name = "Mochi", breed = "Ragdoll mix", ageMonths = 3, sex = Sex.FEMALE, coat = CoatLength.LONG,
++    colour = "Seal point", weightKg = 1.4, personality = listOf("Cuddly", "Gentle"), description = "",
++    imageName = "cat_mochi", goodWithKids = true, goodWithCats = true, goodWithDogs = true, indoorOnly = true,
++)
++
++private val previewSenior = previewKitten.copy(
++    id = 2, name = "Archie", breed = "Maine Coon", ageMonths = 156, sex = Sex.MALE, status = AdoptionStatus.PENDING,
++)
++
++private val previewProduct = Product(
++    id = 1, name = "Kitten Formula Dry Food 2kg", brand = "Royal Feline", category = ProductCategory.FOOD,
++    priceCredits = 60, description = "", imageName = "product_kitten_formula", stock = 3,
++)
++
++@Preview(name = "Cat cards", widthDp = 520)
++@Composable
++private fun CatCardPreview() {
++    FelineTheme {
++        Row(
++            Modifier.background(MaterialTheme.colorScheme.background).padding(16.dp),
++            horizontalArrangement = Arrangement.spacedBy(16.dp),
++        ) {
++            CatCard(previewKitten, onClick = {}, modifier = Modifier.width(220.dp))
++            CatCard(previewSenior, onClick = {}, modifier = Modifier.width(220.dp))
++        }
++    }
++}
++
++@Preview(name = "Product cards", widthDp = 460)
++@Composable
++private fun ProductCardPreview() {
++    FelineTheme {
++        Row(
++            Modifier.background(MaterialTheme.colorScheme.background).padding(16.dp),
++            horizontalArrangement = Arrangement.spacedBy(16.dp),
++        ) {
++            ProductCard(previewProduct, onClick = {}, onAddToBasket = {}, modifier = Modifier.width(200.dp))
++            ProductCard(previewProduct.copy(stock = 0), onClick = {}, onAddToBasket = {}, modifier = Modifier.width(200.dp))
++        }
++    }
++}
++
++@Preview(name = "Badges and chips")
++@Composable
++private fun BadgesPreview() {
++    FelineTheme {
++        Column(
++            Modifier.background(MaterialTheme.colorScheme.background).padding(16.dp),
++            verticalArrangement = Arrangement.spacedBy(12.dp),
++        ) {
++            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                FeeBadge(0)
++                FeeBadge(150)
++                CreditBalanceChip(400)
++            }
++            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                AdoptionStatus.entries.forEach { AdoptionStatusChip(it) }
++            }
++            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                BookingStatus.entries.take(3).forEach { BookingStatusChip(it) }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/components/ProductCard.kt b/app/src/main/java/com/thefelineco/ui/components/ProductCard.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc456744995b87eabaac575860e8f9d2b6fcda71
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/components/ProductCard.kt
+@@ -0,0 +1,95 @@
++package com.thefelineco.ui.components
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.aspectRatio
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.AddShoppingCart
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.FilledIconButton
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.thefelineco.domain.model.Product
++
++/**
++ * Shop product card: photo, brand, name, price and an optional add-to-basket button.
++ * Out-of-stock items are dimmed and can't be added.
++ */
++@Composable
++fun ProductCard(
++    product: Product,
++    onClick: () -> Unit,
++    modifier: Modifier = Modifier,
++    onAddToBasket: (() -> Unit)? = null,
++) {
++    Card(
++        onClick = onClick,
++        shape = MaterialTheme.shapes.large,
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
++        modifier = modifier,
++    ) {
++        Box(Modifier.fillMaxWidth().aspectRatio(1f).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
++            AssetImage(
++                name = product.imageName,
++                contentDescription = product.name,
++                placeholderLabel = product.category.label,
++                modifier = Modifier.fillMaxSize(),
++            )
++            if (!product.inStock) {
++                Pill(
++                    "Out of stock",
++                    containerColor = MaterialTheme.colorScheme.inverseSurface,
++                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
++                    modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
++                )
++            } else if (product.stock <= 5) {
++                Pill(
++                    "Only ${product.stock} left",
++                    containerColor = MaterialTheme.colorScheme.primaryContainer,
++                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
++                    modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
++                )
++            }
++        }
++        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
++            Text(
++                product.brand.uppercase(),
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.primary,
++            )
++            Text(
++                product.name,
++                style = MaterialTheme.typography.titleMedium,
++                maxLines = 2,
++                minLines = 2,
++                overflow = TextOverflow.Ellipsis,
++            )
++            Row(
++                Modifier.fillMaxWidth().padding(top = 6.dp),
++                verticalAlignment = Alignment.CenterVertically,
++                horizontalArrangement = Arrangement.SpaceBetween,
++            ) {
++                Text("${product.priceCredits} credits", style = MaterialTheme.typography.titleMedium)
++                if (onAddToBasket != null) {
++                    FilledIconButton(onClick = onAddToBasket, enabled = product.inStock, modifier = Modifier.size(40.dp)) {
++                        Icon(Icons.Filled.AddShoppingCart, contentDescription = "Add ${product.name} to basket")
++                    }
++                }
++            }
++        }
++    }
++}

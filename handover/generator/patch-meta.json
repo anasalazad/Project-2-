@@ -1,0 +1,669 @@
+[
+ {
+  "id": "01.1",
+  "msg": "Set up Gradle project with version catalog and wrapper",
+  "patch": "01.1-gradle-project.patch",
+  "files": [
+   "A\t.gitignore",
+   "A\tbuild.gradle.kts",
+   "A\tgradle.properties",
+   "A\tgradle/libs.versions.toml",
+   "A\tgradle/wrapper/gradle-wrapper.jar",
+   "A\tgradle/wrapper/gradle-wrapper.properties",
+   "A\tgradlew",
+   "A\tgradlew.bat",
+   "A\tsettings.gradle.kts"
+  ]
+ },
+ {
+  "id": "01.2",
+  "msg": "Add app module with a Compose MainActivity",
+  "patch": "01.2-app-module.patch",
+  "files": [
+   "A\tapp/build.gradle.kts",
+   "A\tapp/proguard-rules.pro",
+   "A\tapp/src/main/AndroidManifest.xml",
+   "A\tapp/src/main/java/com/thefelineco/MainActivity.kt",
+   "A\tapp/src/main/res/values-night/themes.xml",
+   "A\tapp/src/main/res/values/colors.xml",
+   "A\tapp/src/main/res/values/strings.xml",
+   "A\tapp/src/main/res/values/themes.xml"
+  ]
+ },
+ {
+  "id": "01.3",
+  "msg": "Add crown-cat adaptive launcher icon",
+  "patch": "01.3-launcher-icon.patch",
+  "files": [
+   "A\tapp/src/main/res/drawable/ic_launcher_foreground.xml",
+   "A\tapp/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+   "A\tapp/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
+  ]
+ },
+ {
+  "id": "02.1",
+  "msg": "Define brand colour palette and shapes",
+  "patch": "02.1-colours-shapes.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/theme/Color.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/theme/Shape.kt"
+  ]
+ },
+ {
+  "id": "02.2",
+  "msg": "Add typography with optional brand fonts and FelineTheme",
+  "patch": "02.2-typography-theme.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/MainActivity.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/theme/Theme.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/theme/Type.kt"
+  ]
+ },
+ {
+  "id": "02.3",
+  "msg": "Draw the logo and paw pattern on a Canvas",
+  "patch": "02.3-logo-paws.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/FelineLogo.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/PawPattern.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "02.4",
+  "msg": "Show branded splash screen on launch",
+  "patch": "02.4-splash.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/MainActivity.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/common/SplashScreen.kt"
+  ]
+ },
+ {
+  "id": "03.1",
+  "msg": "Add cat model, enums and credit rules",
+  "patch": "03.1-cat-model.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/domain/CreditRules.kt",
+   "A\tapp/src/main/java/com/thefelineco/domain/model/Cat.kt",
+   "A\tapp/src/main/java/com/thefelineco/domain/model/Enums.kt",
+   "M\tbuild.gradle.kts",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "03.2",
+  "msg": "Add booking, shop and user models",
+  "patch": "03.2-other-models.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/domain/model/Booking.kt",
+   "A\tapp/src/main/java/com/thefelineco/domain/model/Shop.kt",
+   "A\tapp/src/main/java/com/thefelineco/domain/model/User.kt"
+  ]
+ },
+ {
+  "id": "03.3",
+  "msg": "Unit-test credit rules and age labels",
+  "patch": "03.3-credit-tests.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/test/java/com/thefelineco/domain/CatAgeLabelTest.kt",
+   "A\tapp/src/test/java/com/thefelineco/domain/CreditRulesTest.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "03.4",
+  "msg": "Add cat and product search, filter and sort queries",
+  "patch": "03.4-queries.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/domain/CatQuery.kt",
+   "A\tapp/src/main/java/com/thefelineco/domain/ProductQuery.kt",
+   "A\tapp/src/test/java/com/thefelineco/domain/CatQueryTest.kt",
+   "A\tapp/src/test/java/com/thefelineco/domain/TestCats.kt"
+  ]
+ },
+ {
+  "id": "03.5",
+  "msg": "Add form validators with unit tests",
+  "patch": "03.5-validators.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/domain/validation/Validators.kt",
+   "A\tapp/src/test/java/com/thefelineco/domain/ValidatorsTest.kt"
+  ]
+ },
+ {
+  "id": "04.1",
+  "msg": "Add badges, chips and empty/loading states",
+  "patch": "04.1-badges-states.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/components/Badges.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/States.kt"
+  ]
+ },
+ {
+  "id": "04.2",
+  "msg": "Add validated text and password fields",
+  "patch": "04.2-form-fields.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/components/FormFields.kt"
+  ]
+ },
+ {
+  "id": "04.3",
+  "msg": "Load local photos by name with a branded placeholder",
+  "patch": "04.3-asset-image.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/AssetImage.kt",
+   "A\tapp/src/main/res/drawable-nodpi/.gitkeep",
+   "A\tapp/src/main/res/raw/keep.xml",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "04.4",
+  "msg": "Add cat and product cards with previews",
+  "patch": "04.4-cards.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/components/CatCard.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/ComponentPreviews.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/ProductCard.kt"
+  ]
+ },
+ {
+  "id": "05.1",
+  "msg": "Add Room entities, mappers and type converters",
+  "patch": "05.1-entities.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/data/local/Converters.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/entity/Entities.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/entity/Mappers.kt",
+   "M\tbuild.gradle.kts",
+   "M\tgradle.properties",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "05.2",
+  "msg": "Add DAOs for users, cats, bookings and the shop",
+  "patch": "05.2-daos.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/data/local/dao/BookingDao.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/dao/CatDao.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/dao/ShopDao.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/dao/UserDao.kt"
+  ]
+ },
+ {
+  "id": "05.3",
+  "msg": "Create the Room database, password hashing and wallet helper",
+  "patch": "05.3-database.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/data/local/FelineDatabase.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/PasswordHasher.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/Wallet.kt"
+  ]
+ },
+ {
+  "id": "05.4",
+  "msg": "Seed demo accounts, 24 cats and 18 products",
+  "patch": "05.4-seed.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/data/local/seed/DatabaseSeeder.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/local/seed/SeedData.kt"
+  ]
+ },
+ {
+  "id": "06.1",
+  "msg": "Add cat and user repositories with a DataStore session",
+  "patch": "06.1-cat-user-repos.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/data/repository/CatRepository.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/repository/FelineException.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/repository/SessionStore.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/repository/UserRepository.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "06.2",
+  "msg": "Add booking repository with credit hold, refund and reward",
+  "patch": "06.2-booking-repo.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/data/repository/BookingRepository.kt"
+  ]
+ },
+ {
+  "id": "06.3",
+  "msg": "Add shop repository with basket and checkout",
+  "patch": "06.3-shop-repo.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/data/repository/ShopRepository.kt"
+  ]
+ },
+ {
+  "id": "06.4",
+  "msg": "Wire the app container and seed the database on first launch",
+  "patch": "06.4-container.patch",
+  "files": [
+   "M\tapp/src/main/AndroidManifest.xml",
+   "A\tapp/src/main/java/com/thefelineco/FelineApplication.kt",
+   "A\tapp/src/main/java/com/thefelineco/data/repository/SettingsStore.kt",
+   "A\tapp/src/main/java/com/thefelineco/di/AppContainer.kt"
+  ]
+ },
+ {
+  "id": "06.5",
+  "msg": "Add instrumented tests for adoption credits and checkout",
+  "patch": "06.5-flow-tests.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "07.1",
+  "msg": "Add shared activity theme helper and layout utilities",
+  "patch": "07.1-content-helpers.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/ui/common/FelineContent.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/common/Layout.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "07.2",
+  "msg": "Add session, login and register ViewModels",
+  "patch": "07.2-auth-viewmodels.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/MainViewModel.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/AuthViewModels.kt"
+  ]
+ },
+ {
+  "id": "07.3",
+  "msg": "Build login and register screens",
+  "patch": "07.3-auth-screens.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/AuthLayout.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/AuthNavHost.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/FormErrorBanner.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/LoginScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/auth/RegisterScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/navigation/Routes.kt",
+   "M\tbuild.gradle.kts",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "07.4",
+  "msg": "Switch between sign-in and the app based on the saved session",
+  "patch": "07.4-session-switch.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/MainActivity.kt"
+  ]
+ },
+ {
+  "id": "07.5",
+  "msg": "Add Compose UI test for the login form",
+  "patch": "07.5-login-ui-test.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "A\tapp/src/androidTest/java/com/thefelineco/ui/LoginScreenTest.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "08.1",
+  "msg": "Add top-level destinations and a placeholder screen",
+  "patch": "08.1-destinations.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/common/ComingSoonScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/navigation/TopLevelDestination.kt"
+  ]
+ },
+ {
+  "id": "08.2",
+  "msg": "Add adaptive navigation shell (rail on tablets, bar on phones)",
+  "patch": "08.2-app-shell.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "M\tapp/src/main/java/com/thefelineco/MainActivity.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/navigation/FelineAppShell.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt",
+   "M\tgradle/libs.versions.toml"
+  ]
+ },
+ {
+  "id": "09.1",
+  "msg": "Add Home ViewModel combining cats, products and the user",
+  "patch": "09.1-home-viewmodel.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt"
+  ]
+ },
+ {
+  "id": "09.2",
+  "msg": "Build Home screen with hero, stats and carousels",
+  "patch": "09.2-home-screen.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/home/HomeScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "10.1",
+  "msg": "Add search field, sort menu and formatting helpers",
+  "patch": "10.1-search-sort.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/common/Formatters.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/SearchAndSort.kt"
+  ]
+ },
+ {
+  "id": "10.2",
+  "msg": "Add Adopt ViewModel with unit tests and fake repositories",
+  "patch": "10.2-adopt-viewmodel.patch",
+  "files": [
+   "M\tapp/build.gradle.kts",
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt",
+   "A\tapp/src/test/java/com/thefelineco/testing/Fakes.kt",
+   "A\tapp/src/test/java/com/thefelineco/testing/MainDispatcherRule.kt",
+   "A\tapp/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt"
+  ]
+ },
+ {
+  "id": "10.3",
+  "msg": "Add the filter panel and brand filter chips",
+  "patch": "10.3-filter-panel.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt"
+  ]
+ },
+ {
+  "id": "10.4",
+  "msg": "Build Adopt screen with responsive grid and filter sheet",
+  "patch": "10.4-adopt-screen.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "11.1",
+  "msg": "Add cat profile ViewModel",
+  "patch": "11.1-detail-viewmodel.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt"
+  ]
+ },
+ {
+  "id": "11.2",
+  "msg": "Build the cat profile screen",
+  "patch": "11.2-detail-screen.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "12.1",
+  "msg": "Add confirm/success dialogs and a date strip",
+  "patch": "12.1-dialogs-datestrip.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/components/DateStrip.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/Dialogs.kt"
+  ]
+ },
+ {
+  "id": "12.2",
+  "msg": "Add booking ViewModel with validation and unit tests",
+  "patch": "12.2-booking-viewmodel.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/booking/BookingViewModel.kt",
+   "A\tapp/src/test/java/com/thefelineco/ui/BookingViewModelTest.kt"
+  ]
+ },
+ {
+  "id": "12.3",
+  "msg": "Add BookingActivity with the meet & greet form",
+  "patch": "12.3-booking-activity.patch",
+  "files": [
+   "M\tapp/src/main/AndroidManifest.xml",
+   "A\tapp/src/main/java/com/thefelineco/ui/booking/BookMeetAndGreet.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/booking/BookingActivity.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/booking/BookingScreen.kt"
+  ]
+ },
+ {
+  "id": "12.4",
+  "msg": "Launch booking from the cat profile and confirm the result",
+  "patch": "12.4-launch-booking.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "13.1",
+  "msg": "Add booking card component",
+  "patch": "13.1-booking-card.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/components/BookingCard.kt"
+  ]
+ },
+ {
+  "id": "13.2",
+  "msg": "Build My Bookings with cancel and refund",
+  "patch": "13.2-my-bookings.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/bookings/BookingsScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/bookings/BookingsViewModel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "14.1",
+  "msg": "Add shop ViewModel and quantity stepper",
+  "patch": "14.1-shop-viewmodel.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/components/QuantityStepper.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/shop/ShopViewModel.kt"
+  ]
+ },
+ {
+  "id": "14.2",
+  "msg": "Build the shop with categories and a product sheet",
+  "patch": "14.2-shop-screen.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/shop/ShopScreen.kt"
+  ]
+ },
+ {
+  "id": "15.1",
+  "msg": "Build the basket with live totals",
+  "patch": "15.1-basket.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/basket/BasketScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/basket/BasketViewModel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "15.2",
+  "msg": "Add checkout ViewModel with unit tests",
+  "patch": "15.2-checkout-viewmodel.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/checkout/CheckoutViewModel.kt",
+   "A\tapp/src/test/java/com/thefelineco/ui/CheckoutViewModelTest.kt"
+  ]
+ },
+ {
+  "id": "15.3",
+  "msg": "Add CheckoutActivity with the delivery form",
+  "patch": "15.3-checkout-activity.patch",
+  "files": [
+   "M\tapp/src/main/AndroidManifest.xml",
+   "A\tapp/src/main/java/com/thefelineco/ui/checkout/CheckoutActivity.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/checkout/CheckoutContract.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/checkout/CheckoutScreen.kt"
+  ]
+ },
+ {
+  "id": "15.4",
+  "msg": "Launch checkout from the basket and confirm the order",
+  "patch": "15.4-launch-checkout.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "16.1",
+  "msg": "Add account ViewModel with wallet, orders and theme setting",
+  "patch": "16.1-profile-viewmodel.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/profile/ProfileViewModel.kt"
+  ]
+ },
+ {
+  "id": "16.2",
+  "msg": "Build the account screen with wallet history and theme toggle",
+  "patch": "16.2-profile-screen.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/profile/ProfileScreen.kt"
+  ]
+ },
+ {
+  "id": "17.1",
+  "msg": "Add shared admin components",
+  "patch": "17.1-admin-components.patch",
+  "files": [
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/AdminComponents.kt"
+  ]
+ },
+ {
+  "id": "17.2",
+  "msg": "Build the admin dashboard",
+  "patch": "17.2-admin-dashboard.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/AdminDashboard.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "17.3",
+  "msg": "Add listing management with search and status filter",
+  "patch": "17.3-admin-cats.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/AdminCatsScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "17.4",
+  "msg": "Add the cat add/edit form with validation",
+  "patch": "17.4-cat-form.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/CatFormScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/CatFormViewModel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "17.5",
+  "msg": "Add appointments management for admins",
+  "patch": "17.5-admin-bookings.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/AdminBookingsScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "17.6",
+  "msg": "Add product management and remove the placeholder screen",
+  "patch": "17.6-admin-products.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/AdminProductsScreen.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/admin/ProductFormScreen.kt",
+   "D\tapp/src/main/java/com/thefelineco/ui/common/ComingSoonScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt"
+  ]
+ },
+ {
+  "id": "18.1",
+  "msg": "Store favourites in Room (database version 2)",
+  "patch": "18.1-favourites-data.patch",
+  "files": [
+   "M\tapp/src/androidTest/java/com/thefelineco/data/AdoptionAndShopFlowTest.kt",
+   "M\tapp/src/main/java/com/thefelineco/data/local/FelineDatabase.kt",
+   "M\tapp/src/main/java/com/thefelineco/data/local/dao/CatDao.kt",
+   "M\tapp/src/main/java/com/thefelineco/data/local/entity/Entities.kt",
+   "M\tapp/src/main/java/com/thefelineco/data/repository/CatRepository.kt",
+   "M\tapp/src/test/java/com/thefelineco/testing/Fakes.kt"
+  ]
+ },
+ {
+  "id": "18.2",
+  "msg": "Add favourites filter and animated heart button",
+  "patch": "18.2-favourites-ui-parts.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/domain/CatQuery.kt",
+   "A\tapp/src/main/java/com/thefelineco/ui/common/Favourites.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/components/CatCard.kt",
+   "M\tapp/src/test/java/com/thefelineco/domain/CatQueryTest.kt"
+  ]
+ },
+ {
+  "id": "18.3",
+  "msg": "Show favourites on Adopt, cat profiles and Home",
+  "patch": "18.3-favourites-screens.patch",
+  "files": [
+   "M\tapp/src/main/java/com/thefelineco/di/AppViewModelProvider.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/adopt/AdoptScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/adopt/AdoptViewModel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/adopt/CatFilterPanel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/catdetail/CatDetailScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/catdetail/CatDetailViewModel.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/home/HomeScreen.kt",
+   "M\tapp/src/main/java/com/thefelineco/ui/home/HomeViewModel.kt",
+   "M\tapp/src/test/java/com/thefelineco/ui/AdoptViewModelTest.kt"
+  ]
+ },
+ {
+  "id": "19.1",
+  "msg": "Write README with features, architecture and demo accounts",
+  "patch": "19.1-readme.patch",
+  "files": [
+   "M\tREADME.md"
+  ]
+ },
+ {
+  "id": "19.2",
+  "msg": "Add testing guide with the manual test script",
+  "patch": "19.2-testing-guide.patch",
+  "files": [
+   "A\tTESTING.md"
+  ]
+ }
+]

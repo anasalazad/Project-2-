@@ -1,0 +1,479 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index f812eb12a667b04873b54bbb1e1e467fa7eb290a..eaeff0b6cbdc653379bce3a7090df0a44933b4e3 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -20,6 +20,12 @@
+             </intent-filter>
+         </activity>
+ 
++        <!-- Opened from a cat's profile with a Parcelable Cat; returns a Parcelable Booking. -->
++        <activity
++            android:name=".ui.booking.BookingActivity"
++            android:exported="false"
++            android:windowSoftInputMode="adjustResize" />
++
+     </application>
+ 
+ </manifest>
+diff --git a/app/src/main/java/com/thefelineco/ui/booking/BookMeetAndGreet.kt b/app/src/main/java/com/thefelineco/ui/booking/BookMeetAndGreet.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..83600bd16675b8b2db543a2eae1f0951901a4401
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/booking/BookMeetAndGreet.kt
+@@ -0,0 +1,33 @@
++package com.thefelineco.ui.booking
++
++import android.app.Activity
++import android.content.Context
++import android.content.Intent
++import androidx.activity.result.contract.ActivityResultContract
++import androidx.core.content.IntentCompat
++import com.thefelineco.domain.model.Booking
++import com.thefelineco.domain.model.Cat
++
++/**
++ * Activity Result contract for the meet & greet flow. Input: the [Cat] to meet, sent as a
++ * Parcelable extra. Output: the confirmed [Booking], or null if the user backed out.
++ *
++ * Usage: `rememberLauncherForActivityResult(BookMeetAndGreet()) { booking -> … }`.
++ */
++class BookMeetAndGreet : ActivityResultContract<Cat, Booking?>() {
++
++    override fun createIntent(context: Context, input: Cat): Intent =
++        Intent(context, BookingActivity::class.java).putExtra(EXTRA_CAT, input)
++
++    override fun parseResult(resultCode: Int, intent: Intent?): Booking? =
++        if (resultCode == Activity.RESULT_OK && intent != null) {
++            IntentCompat.getParcelableExtra(intent, EXTRA_BOOKING, Booking::class.java)
++        } else {
++            null
++        }
++
++    companion object {
++        const val EXTRA_CAT = "com.thefelineco.extra.CAT"
++        const val EXTRA_BOOKING = "com.thefelineco.extra.BOOKING"
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/booking/BookingActivity.kt b/app/src/main/java/com/thefelineco/ui/booking/BookingActivity.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..580a0c6070a64e1f652d7fc582e5c86205b2224c
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/booking/BookingActivity.kt
+@@ -0,0 +1,57 @@
++package com.thefelineco.ui.booking
++
++import android.content.Intent
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.viewModels
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.core.content.IntentCompat
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.initializer
++import androidx.lifecycle.viewmodel.viewModelFactory
++import com.thefelineco.FelineApplication
++import com.thefelineco.domain.model.Booking
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.ui.common.setFelineContent
++
++/**
++ * Second activity: the meet & greet booking form.
++ *
++ * Receives a [Cat] as a Parcelable extra ([BookMeetAndGreet.EXTRA_CAT]) and, once the booking is
++ * saved, returns the [Booking] to MainActivity with `setResult(RESULT_OK)`.
++ */
++class BookingActivity : ComponentActivity() {
++
++    private val cat: Cat? by lazy {
++        IntentCompat.getParcelableExtra(intent, BookMeetAndGreet.EXTRA_CAT, Cat::class.java)
++    }
++
++    private val viewModel: BookingViewModel by viewModels {
++        val container = (application as FelineApplication).container
++        viewModelFactory {
++            initializer { BookingViewModel(checkNotNull(cat), container.userRepository, container.bookingRepository) }
++        }
++    }
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        // Defensive: this screen can't work without a cat to book.
++        if (cat == null) {
++            finish()
++            return
++        }
++        setFelineContent {
++            val state by viewModel.uiState.collectAsStateWithLifecycle()
++            LaunchedEffect(state.confirmed) {
++                state.confirmed?.let(::finishWithResult)
++            }
++            BookingScreen(state = state, onEvent = viewModel::onEvent, onClose = ::finish)
++        }
++    }
++
++    private fun finishWithResult(booking: Booking) {
++        setResult(RESULT_OK, Intent().putExtra(BookMeetAndGreet.EXTRA_BOOKING, booking))
++        finish()
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/booking/BookingScreen.kt b/app/src/main/java/com/thefelineco/ui/booking/BookingScreen.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..41c34da724496d2720693d2dcf01bbd673d03efc
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/booking/BookingScreen.kt
+@@ -0,0 +1,354 @@
++package com.thefelineco.ui.booking
++
++import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ColumnScope
++import androidx.compose.foundation.layout.ExperimentalLayoutApi
++import androidx.compose.foundation.layout.FlowRow
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.aspectRatio
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.imePadding
++import androidx.compose.foundation.layout.navigationBarsPadding
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.selection.toggleable
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Close
++import androidx.compose.material.icons.filled.Email
++import androidx.compose.material.icons.filled.Person
++import androidx.compose.material.icons.filled.Phone
++import androidx.compose.material.icons.filled.Schedule
++import androidx.compose.material.icons.filled.WarningAmber
++import androidx.compose.material3.Button
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.Checkbox
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Switch
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarDefaults
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
++import androidx.compose.ui.text.style.TextDecoration
++import androidx.compose.ui.unit.dp
++import com.thefelineco.ui.adopt.FelineFilterChip
++import com.thefelineco.ui.auth.FormErrorBanner
++import com.thefelineco.ui.common.formatLong
++import com.thefelineco.ui.common.isExpandedLayout
++import com.thefelineco.ui.components.AssetImage
++import com.thefelineco.ui.components.DateStrip
++import com.thefelineco.ui.components.FeeBadge
++import com.thefelineco.ui.components.FelineLogo
++import com.thefelineco.ui.components.ValidatedTextField
++import com.thefelineco.ui.theme.FelineTheme
++
++/** The booking form, shown inside BookingActivity. Stateless: state in, events out. */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun BookingScreen(state: BookingUiState, onEvent: (BookingEvent) -> Unit, onClose: () -> Unit) {
++    Scaffold(
++        topBar = {
++            TopAppBar(
++                title = { FelineLogo(markSize = 32.dp) },
++                navigationIcon = {
++                    IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close without booking") }
++                },
++                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
++            )
++        },
++        bottomBar = { ConfirmBar(state, onSubmit = { onEvent(BookingEvent.Submit) }) },
++        containerColor = MaterialTheme.colorScheme.background,
++    ) { padding ->
++        if (isExpandedLayout()) {
++            Row(Modifier.fillMaxSize().padding(padding).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
++                Column(Modifier.weight(0.8f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
++                    CatSummary(state, large = true)
++                }
++                Column(
++                    Modifier.weight(1.2f).fillMaxHeight().verticalScroll(rememberScrollState()).imePadding().padding(vertical = 16.dp),
++                    verticalArrangement = Arrangement.spacedBy(28.dp),
++                ) {
++                    BookingForm(state, onEvent)
++                }
++            }
++        } else {
++            Column(
++                Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
++                verticalArrangement = Arrangement.spacedBy(28.dp),
++            ) {
++                CatSummary(state, large = false)
++                BookingForm(state, onEvent)
++            }
++        }
++    }
++}
++
++/** Who you're meeting, what it costs, and what to expect. */
++@Composable
++private fun CatSummary(state: BookingUiState, large: Boolean) {
++    val cat = state.cat
++    Card(
++        shape = MaterialTheme.shapes.extraLarge,
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
++    ) {
++        if (large) {
++            AssetImage(cat.imageName, "Photo of ${cat.name}", Modifier.fillMaxWidth().aspectRatio(4f / 3f), placeholderLabel = cat.name)
++        }
++        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
++                if (!large) {
++                    AssetImage(cat.imageName, null, Modifier.size(72.dp).clip(MaterialTheme.shapes.medium))
++                }
++                Column(Modifier.weight(1f)) {
++                    Text("Meet & greet with", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
++                    Text(cat.name, style = MaterialTheme.typography.headlineMedium)
++                    Text("${cat.breed} · ${cat.ageLabel}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                }
++                FeeBadge(cat.adoptionFee)
++            }
++            HorizontalDivider()
++            CreditLine("Your balance", "${state.credits} credits")
++            CreditLine("Adoption fee (held now)", if (state.fee == 0) "Free" else "−${state.fee} credits")
++            CreditLine("Balance after booking", "${state.balanceAfter} credits", emphasise = true, warn = !state.canAfford)
++            if (large) {
++                HorizontalDivider()
++                Text("What to expect", style = MaterialTheme.typography.titleLarge)
++                listOf(
++                    "A relaxed 45-minute visit in our cattery lounge",
++                    "A carer who knows ${cat.name} will answer your questions",
++                    "Fees are refunded in full if you cancel",
++                    "Complete the adoption to earn 250 bonus credits",
++                ).forEach { line ->
++                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
++                        Text("•", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyLarge)
++                        Text(line, style = MaterialTheme.typography.bodyMedium)
++                    }
++                }
++            }
++        }
++    }
++}
++
++@Composable
++private fun CreditLine(label: String, value: String, emphasise: Boolean = false, warn: Boolean = false) {
++    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
++        Text(
++            value,
++            style = if (emphasise) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
++            color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
++        )
++    }
++}
++
++@OptIn(ExperimentalLayoutApi::class)
++@Composable
++private fun ColumnScope.BookingForm(state: BookingUiState, onEvent: (BookingEvent) -> Unit) {
++    val errors = state.errors
++
++    FormSection("1. Choose a day", errors[BookingField.DATE]) {
++        DateStrip(
++            dates = state.dates,
++            selected = state.selectedDate,
++            onSelect = { onEvent(BookingEvent.DateSelected(it)) },
++            isEnabled = BookingViewModel::isOpen,
++        )
++    }
++
++    FormSection("2. Choose a time", errors[BookingField.SLOT]) {
++        val date = state.selectedDate
++        if (date == null) {
++            Text("Pick a day to see available times.", color = MaterialTheme.colorScheme.onSurfaceVariant)
++        } else {
++            Text(date.formatLong(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
++            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
++                BookingViewModel.TIME_SLOTS.forEach { slot ->
++                    val taken = slot in state.takenSlots
++                    FelineFilterChip(
++                        label = if (taken) "$slot · Booked" else slot,
++                        selected = slot == state.selectedSlot,
++                        enabled = !taken,
++                        onClick = { onEvent(BookingEvent.SlotSelected(slot)) },
++                    )
++                }
++            }
++        }
++    }
++
++    FormSection("3. Your details") {
++        ValidatedTextField(
++            value = state.fullName,
++            onValueChange = { onEvent(BookingEvent.FullNameChanged(it)) },
++            label = "Full name",
++            error = errors[BookingField.NAME],
++            leadingIcon = Icons.Filled.Person,
++        )
++        ValidatedTextField(
++            value = state.email,
++            onValueChange = { onEvent(BookingEvent.EmailChanged(it)) },
++            label = "Email",
++            error = errors[BookingField.EMAIL],
++            leadingIcon = Icons.Filled.Email,
++            keyboardType = KeyboardType.Email,
++        )
++        ValidatedTextField(
++            value = state.phone,
++            onValueChange = { onEvent(BookingEvent.PhoneChanged(it)) },
++            label = "Phone",
++            error = errors[BookingField.PHONE],
++            leadingIcon = Icons.Filled.Phone,
++            keyboardType = KeyboardType.Phone,
++            helper = "We'll text you a reminder the day before",
++        )
++    }
++
++    FormSection("4. Your home", errors[BookingField.HOME]) {
++        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
++            BookingViewModel.HOME_TYPES.forEach { type ->
++                FelineFilterChip(type, state.homeType == type) { onEvent(BookingEvent.HomeTypeSelected(type)) }
++            }
++        }
++        SwitchRow("I have other pets", state.hasOtherPets) { onEvent(BookingEvent.OtherPetsChanged(it)) }
++        SwitchRow("There are children in my home", state.hasChildren) { onEvent(BookingEvent.ChildrenChanged(it)) }
++        // Updates live as the switches change.
++        state.compatibilityWarnings.forEach { warning ->
++            Surface(
++                color = FelineTheme.colors.warningContainer,
++                contentColor = FelineTheme.colors.onWarningContainer,
++                shape = MaterialTheme.shapes.medium,
++            ) {
++                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
++                    Icon(Icons.Filled.WarningAmber, contentDescription = null)
++                    Text("$warning You can still book, and we'll talk it through at your visit.", style = MaterialTheme.typography.bodyMedium)
++                }
++            }
++        }
++    }
++
++    FormSection("5. Anything else? (optional)") {
++        ValidatedTextField(
++            value = state.notes,
++            onValueChange = { onEvent(BookingEvent.NotesChanged(it)) },
++            label = "Notes for our carers",
++            error = null,
++            singleLine = false,
++            minLines = 3,
++            imeAction = ImeAction.Default,
++            helper = "${state.notes.length} / ${BookingViewModel.MAX_NOTES}",
++        )
++    }
++
++    Column {
++        Row(
++            Modifier.fillMaxWidth().toggleable(
++                value = state.acceptedTerms,
++                role = Role.Checkbox,
++                onValueChange = { onEvent(BookingEvent.TermsChanged(it)) },
++            ),
++            verticalAlignment = Alignment.CenterVertically,
++        ) {
++            Checkbox(checked = state.acceptedTerms, onCheckedChange = null)
++            Text(
++                "I understand the fee is held until the adoption is complete, and refunded if I cancel.",
++                style = MaterialTheme.typography.bodyMedium,
++            )
++        }
++        errors[BookingField.TERMS]?.let {
++            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 48.dp))
++        }
++    }
++
++    AnimatedVisibility(visible = state.formError != null) {
++        FormErrorBanner(state.formError.orEmpty())
++    }
++}
++
++@Composable
++private fun FormSection(title: String, error: String? = null, content: @Composable ColumnScope.() -> Unit) {
++    Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++        Text(title, style = MaterialTheme.typography.titleLarge)
++        content()
++        if (error != null) {
++            Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
++        }
++    }
++}
++
++@Composable
++private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
++    Row(
++        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange).padding(vertical = 4.dp),
++        verticalAlignment = Alignment.CenterVertically,
++    ) {
++        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
++        Switch(checked = checked, onCheckedChange = null)
++    }
++}
++
++/** Sticky bottom bar with the summary and the confirm button, always in reach. */
++@Composable
++private fun ConfirmBar(state: BookingUiState, onSubmit: () -> Unit) {
++    Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
++        Row(
++            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 14.dp),
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(16.dp),
++        ) {
++            Column(Modifier.weight(1f)) {
++                val date = state.selectedDate
++                val slot = state.selectedSlot
++                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
++                    Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
++                    Text(
++                        when {
++                            date == null -> "No day chosen yet"
++                            slot == null -> "${date.formatLong()} · pick a time"
++                            else -> "${date.formatLong()} · $slot"
++                        },
++                        style = MaterialTheme.typography.titleSmall,
++                        textDecoration = if (slot != null && slot in state.takenSlots) TextDecoration.LineThrough else null,
++                    )
++                }
++                Text(
++                    if (state.fee == 0) "Free adoption" else "${state.fee} credits will be held",
++                    style = MaterialTheme.typography.bodySmall,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++            }
++            Button(
++                onClick = onSubmit,
++                enabled = !state.isSubmitting,
++                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp),
++                modifier = Modifier.heightIn(min = 52.dp),
++            ) {
++                if (state.isSubmitting) {
++                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
++                } else {
++                    Text("Confirm booking", style = MaterialTheme.typography.titleMedium)
++                }
++            }
++        }
++    }
++}

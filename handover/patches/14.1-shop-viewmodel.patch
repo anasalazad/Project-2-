@@ -1,0 +1,170 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index e90aa7fb0b2d32a0d1121893f15dae46c9e2c795..fc1cb2b6fb6503bca70afcc22b66ceb27533b31c 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -17,6 +17,7 @@ import com.thefelineco.ui.catdetail.CatDetailViewModel
+ import com.thefelineco.ui.home.HomeViewModel
+ import com.thefelineco.ui.navigation.AdoptRoute
+ import com.thefelineco.ui.navigation.CatDetailRoute
++import com.thefelineco.ui.shop.ShopViewModel
+ 
+ /**
+  * Creates every ViewModel with its dependencies from [AppContainer].
+@@ -42,6 +43,7 @@ object AppViewModelProvider {
+             )
+         }
+         initializer { BookingsViewModel(container().userRepository, container().bookingRepository) }
++        initializer { ShopViewModel(container().userRepository, container().shopRepository) }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/components/QuantityStepper.kt b/app/src/main/java/com/thefelineco/ui/components/QuantityStepper.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc256226ad5b76c2ed671428ee94988e3f5cec09
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/components/QuantityStepper.kt
+@@ -0,0 +1,45 @@
++package com.thefelineco.ui.components
++
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Add
++import androidx.compose.material.icons.filled.Remove
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++
++/** − 2 + control. The buttons disable themselves at the ends of [range]. */
++@Composable
++fun QuantityStepper(
++    value: Int,
++    onValueChange: (Int) -> Unit,
++    modifier: Modifier = Modifier,
++    range: IntRange = 1..99,
++    itemName: String = "item",
++) {
++    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = modifier) {
++        Row(verticalAlignment = Alignment.CenterVertically) {
++            IconButton(onClick = { onValueChange(value - 1) }, enabled = value > range.first) {
++                Icon(Icons.Filled.Remove, contentDescription = "One less $itemName")
++            }
++            Text(
++                value.toString(),
++                style = MaterialTheme.typography.titleMedium,
++                textAlign = TextAlign.Center,
++                modifier = Modifier.widthIn(min = 28.dp),
++            )
++            IconButton(onClick = { onValueChange(value + 1) }, enabled = value < range.last) {
++                Icon(Icons.Filled.Add, contentDescription = "One more $itemName")
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/shop/ShopViewModel.kt b/app/src/main/java/com/thefelineco/ui/shop/ShopViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..38160cdeb374cb62fd45955c1f184010249e8fb0
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/shop/ShopViewModel.kt
+@@ -0,0 +1,93 @@
++package com.thefelineco.ui.shop
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.ProductQuery
++import com.thefelineco.domain.ProductSort
++import com.thefelineco.domain.model.CartItem
++import com.thefelineco.domain.model.Product
++import com.thefelineco.domain.model.ProductCategory
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.receiveAsFlow
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++
++data class ShopUiState(
++    val isLoading: Boolean = true,
++    val query: ProductQuery = ProductQuery(),
++    val products: List<Product> = emptyList(),
++    val credits: Int = 0,
++    /** How many of each product (by id) are already in the basket. */
++    val inBasket: Map<Long, Int> = emptyMap(),
++)
++
++sealed interface ShopEvent {
++    data class SearchChanged(val text: String) : ShopEvent
++    data class CategorySelected(val category: ProductCategory?) : ShopEvent
++    data class SortChanged(val sort: ProductSort) : ShopEvent
++    data object ToggleInStockOnly : ShopEvent
++    data class AddToBasket(val product: Product, val quantity: Int = 1) : ShopEvent
++}
++
++/** The shop catalogue with search, category filter, sorting and add-to-basket. */
++@OptIn(ExperimentalCoroutinesApi::class)
++class ShopViewModel(
++    private val userRepository: UserRepository,
++    private val shopRepository: ShopRepository,
++) : ViewModel() {
++
++    private val query = MutableStateFlow(ProductQuery())
++
++    private val basket: Flow<List<CartItem>> = userRepository.currentUser.flatMapLatest { user ->
++        if (user == null) flowOf(emptyList()) else shopRepository.observeCart(user.id)
++    }
++
++    val uiState: StateFlow<ShopUiState> = combine(
++        shopRepository.observeProducts(),
++        query,
++        userRepository.currentUser,
++        basket,
++    ) { products, q, user, cart ->
++        ShopUiState(
++            isLoading = false,
++            query = q,
++            products = q.apply(products),
++            credits = user?.credits ?: 0,
++            inBasket = cart.associate { it.productId to it.quantity },
++        )
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ShopUiState())
++
++    private val _messages = Channel<String>(Channel.BUFFERED)
++    val messages: Flow<String> = _messages.receiveAsFlow()
++
++    fun onEvent(event: ShopEvent) {
++        when (event) {
++            is ShopEvent.SearchChanged -> query.update { it.copy(text = event.text) }
++            is ShopEvent.CategorySelected -> query.update { it.copy(category = event.category) }
++            is ShopEvent.SortChanged -> query.update { it.copy(sort = event.sort) }
++            ShopEvent.ToggleInStockOnly -> query.update { it.copy(inStockOnly = !it.inStockOnly) }
++            is ShopEvent.AddToBasket -> addToBasket(event.product, event.quantity)
++        }
++    }
++
++    private fun addToBasket(product: Product, quantity: Int) {
++        viewModelScope.launch {
++            val user = userRepository.currentUser.first() ?: return@launch
++            shopRepository.addToCart(user.id, product.id, quantity)
++                .onSuccess { _messages.send("Added $quantity × ${product.name} to your basket") }
++                .onFailure { _messages.send(it.message ?: "Couldn't add to basket") }
++        }
++    }
++}

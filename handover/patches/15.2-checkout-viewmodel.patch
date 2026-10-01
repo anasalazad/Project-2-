@@ -1,0 +1,248 @@
+diff --git a/app/src/main/java/com/thefelineco/ui/checkout/CheckoutViewModel.kt b/app/src/main/java/com/thefelineco/ui/checkout/CheckoutViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a5a876ed48ba66d32a524ca0a739717d63dc108
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/checkout/CheckoutViewModel.kt
+@@ -0,0 +1,148 @@
++package com.thefelineco.ui.checkout
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.CreditRules
++import com.thefelineco.domain.model.CartItem
++import com.thefelineco.domain.model.DeliveryMethod
++import com.thefelineco.domain.model.Order
++import com.thefelineco.domain.model.subtotal
++import com.thefelineco.domain.validation.Validators
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++
++enum class CheckoutField { NAME, ADDRESS, SUBURB, POSTCODE }
++
++data class CheckoutUiState(
++    val items: List<CartItem>,
++    val userId: Long? = null,
++    val credits: Int = 0,
++    val deliveryMethod: DeliveryMethod = DeliveryMethod.STANDARD,
++    val fullName: String = "",
++    val address: String = "",
++    val suburb: String = "",
++    val postcode: String = "",
++    val errors: Map<CheckoutField, String> = emptyMap(),
++    val formError: String? = null,
++    val isSubmitting: Boolean = false,
++    /** Set once the order is saved. CheckoutActivity then returns it as its result. */
++    val placed: Order? = null,
++) {
++    val subtotal: Int get() = items.subtotal
++    val total: Int get() = subtotal + deliveryMethod.extraCredits
++    val balanceAfter: Int get() = credits - total
++    val canAfford: Boolean get() = CreditRules.canAfford(credits, total)
++
++    /** Click & collect needs no delivery address. */
++    val needsAddress: Boolean get() = deliveryMethod != DeliveryMethod.CLICK_AND_COLLECT
++}
++
++sealed interface CheckoutEvent {
++    data class NameChanged(val value: String) : CheckoutEvent
++    data class AddressChanged(val value: String) : CheckoutEvent
++    data class SuburbChanged(val value: String) : CheckoutEvent
++    data class PostcodeChanged(val value: String) : CheckoutEvent
++    data class MethodSelected(val method: DeliveryMethod) : CheckoutEvent
++    data object Submit : CheckoutEvent
++}
++
++/** Delivery details and order placement for CheckoutActivity. */
++class CheckoutViewModel(
++    items: List<CartItem>,
++    private val userRepository: UserRepository,
++    private val shopRepository: ShopRepository,
++) : ViewModel() {
++
++    private val _uiState = MutableStateFlow(CheckoutUiState(items = items))
++    val uiState: StateFlow<CheckoutUiState> = _uiState.asStateFlow()
++
++    init {
++        viewModelScope.launch {
++            var prefilled = false
++            userRepository.currentUser.collect { user ->
++                _uiState.update { s ->
++                    val base = s.copy(userId = user?.id, credits = user?.credits ?: 0)
++                    if (!prefilled && user != null) {
++                        prefilled = true
++                        base.copy(fullName = s.fullName.ifEmpty { user.fullName })
++                    } else {
++                        base
++                    }
++                }
++            }
++        }
++    }
++
++    fun onEvent(event: CheckoutEvent) {
++        when (event) {
++            is CheckoutEvent.NameChanged -> edit(CheckoutField.NAME) { it.copy(fullName = event.value) }
++            is CheckoutEvent.AddressChanged -> edit(CheckoutField.ADDRESS) { it.copy(address = event.value) }
++            is CheckoutEvent.SuburbChanged -> edit(CheckoutField.SUBURB) { it.copy(suburb = event.value) }
++            // Only digits, at most four: invalid input can't even be typed.
++            is CheckoutEvent.PostcodeChanged -> edit(CheckoutField.POSTCODE) {
++                it.copy(postcode = event.value.filter(Char::isDigit).take(4))
++            }
++            is CheckoutEvent.MethodSelected -> _uiState.update { it.copy(deliveryMethod = event.method, formError = null) }
++            CheckoutEvent.Submit -> submit()
++        }
++    }
++
++    private fun edit(field: CheckoutField, change: (CheckoutUiState) -> CheckoutUiState) {
++        _uiState.update { change(it).copy(errors = it.errors - field, formError = null) }
++    }
++
++    internal fun validate(s: CheckoutUiState): Map<CheckoutField, String> = buildMap {
++        Validators.name(s.fullName)?.let { put(CheckoutField.NAME, it) }
++        if (s.needsAddress) {
++            when {
++                s.address.isBlank() -> put(CheckoutField.ADDRESS, "Street address is required")
++                s.address.trim().length < 5 -> put(CheckoutField.ADDRESS, "Enter your full street address")
++            }
++            Validators.required(s.suburb, "Suburb")?.let { put(CheckoutField.SUBURB, it) }
++            Validators.postcode(s.postcode)?.let { put(CheckoutField.POSTCODE, it) }
++        }
++    }
++
++    private fun submit() {
++        val s = _uiState.value
++        if (s.isSubmitting) return
++        val errors = validate(s)
++        when {
++            errors.isNotEmpty() -> {
++                _uiState.update { it.copy(errors = errors, formError = "Please check the highlighted details") }
++                return
++            }
++            !s.canAfford -> {
++                _uiState.update { it.copy(formError = "This order costs ${s.total} credits but you have ${s.credits}") }
++                return
++            }
++        }
++        val userId = s.userId ?: run {
++            _uiState.update { it.copy(formError = "Please sign in again") }
++            return
++        }
++        val order = Order(
++            userId = userId,
++            items = s.items,
++            subtotal = s.subtotal,
++            deliveryMethod = s.deliveryMethod,
++            deliveryName = s.fullName,
++            address = if (s.needsAddress) "${s.address.trim()}, ${s.suburb.trim()} ${s.postcode}" else STORE_ADDRESS,
++        )
++        _uiState.update { it.copy(isSubmitting = true, formError = null) }
++        viewModelScope.launch {
++            shopRepository.checkout(order)
++                .onSuccess { placed -> _uiState.update { it.copy(isSubmitting = false, placed = placed) } }
++                .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, formError = error.message ?: "Couldn't place your order") } }
++        }
++    }
++
++    companion object {
++        const val STORE_ADDRESS = "Click & collect · The Feline Co. store"
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/ui/CheckoutViewModelTest.kt b/app/src/test/java/com/thefelineco/ui/CheckoutViewModelTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bad5f735bd3597b6ba3747e9ce67793ac20465a4
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/ui/CheckoutViewModelTest.kt
+@@ -0,0 +1,88 @@
++package com.thefelineco.ui
++
++import com.thefelineco.domain.model.CartItem
++import com.thefelineco.domain.model.DeliveryMethod
++import com.thefelineco.testing.FakeShopRepository
++import com.thefelineco.testing.FakeUserRepository
++import com.thefelineco.testing.MainDispatcherRule
++import com.thefelineco.testing.testUser
++import com.thefelineco.ui.checkout.CheckoutEvent
++import com.thefelineco.ui.checkout.CheckoutField
++import com.thefelineco.ui.checkout.CheckoutViewModel
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Rule
++import org.junit.Test
++
++class CheckoutViewModelTest {
++    @get:Rule val mainRule = MainDispatcherRule()
++
++    private val items = listOf(
++        CartItem(productId = 1, name = "Cat Tree", imageName = "", unitPrice = 120, quantity = 1, stock = 5),
++        CartItem(productId = 2, name = "Catnip Mice", imageName = "", unitPrice = 12, quantity = 3, stock = 50),
++    )
++    private val shop = FakeShopRepository()
++    private val users = FakeUserRepository()
++    private fun viewModel() = CheckoutViewModel(items, users, shop)
++
++    @Test
++    fun `totals include the delivery method`() {
++        val vm = viewModel()
++        assertEquals(156, vm.uiState.value.subtotal)
++        vm.onEvent(CheckoutEvent.MethodSelected(DeliveryMethod.EXPRESS))
++        assertEquals(166, vm.uiState.value.total)
++        assertEquals(testUser.credits - 166, vm.uiState.value.balanceAfter)
++    }
++
++    @Test
++    fun `delivery needs a full address`() {
++        val vm = viewModel()
++        vm.onEvent(CheckoutEvent.Submit)
++        val errors = vm.uiState.value.errors
++        assertEquals(setOf(CheckoutField.ADDRESS, CheckoutField.SUBURB, CheckoutField.POSTCODE), errors.keys)
++        assertTrue(shop.placedOrders.isEmpty())
++    }
++
++    @Test
++    fun `click and collect needs no address`() {
++        val vm = viewModel()
++        vm.onEvent(CheckoutEvent.MethodSelected(DeliveryMethod.CLICK_AND_COLLECT))
++        assertFalse(vm.uiState.value.needsAddress)
++        vm.onEvent(CheckoutEvent.Submit)
++        assertNotNull(vm.uiState.value.placed)
++        assertEquals(CheckoutViewModel.STORE_ADDRESS, shop.placedOrders.single().address)
++    }
++
++    @Test
++    fun `postcode only accepts four digits`() {
++        val vm = viewModel()
++        vm.onEvent(CheckoutEvent.PostcodeChanged("30a0012"))
++        assertEquals("3000", vm.uiState.value.postcode)
++    }
++
++    @Test
++    fun `order is blocked when the balance is too low`() {
++        users.user.value = testUser.copy(credits = 100)
++        val vm = viewModel()
++        vm.onEvent(CheckoutEvent.MethodSelected(DeliveryMethod.CLICK_AND_COLLECT))
++        vm.onEvent(CheckoutEvent.Submit)
++        assertNull(vm.uiState.value.placed)
++        assertNotNull(vm.uiState.value.formError)
++    }
++
++    @Test
++    fun `a valid delivery order is placed`() {
++        val vm = viewModel()
++        vm.onEvent(CheckoutEvent.AddressChanged("12 Whisker Lane"))
++        vm.onEvent(CheckoutEvent.SuburbChanged("Carlton"))
++        vm.onEvent(CheckoutEvent.PostcodeChanged("3053"))
++        vm.onEvent(CheckoutEvent.Submit)
++        val order = vm.uiState.value.placed
++        assertNotNull(order)
++        assertEquals("12 Whisker Lane, Carlton 3053", order!!.address)
++        assertEquals(testUser.fullName, order.deliveryName)
++    }
++}

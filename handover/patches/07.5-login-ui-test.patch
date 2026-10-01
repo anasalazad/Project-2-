@@ -1,0 +1,82 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 2a9f3a46bd3eaca2597df390bf38b0ef4046a29c..fbffaefc56fcda908f3e573155accc052f8ddd65 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -80,7 +80,10 @@ dependencies {
+ 
+     androidTestImplementation(libs.androidx.junit)
+     androidTestImplementation(libs.androidx.espresso.core)
++    androidTestImplementation(platform(libs.androidx.compose.bom))
++    androidTestImplementation(libs.androidx.ui.test.junit4)
+     androidTestImplementation(libs.kotlinx.coroutines.test)
+ 
+     debugImplementation(libs.androidx.ui.tooling)
++    debugImplementation(libs.androidx.ui.test.manifest)
+ }
+diff --git a/app/src/androidTest/java/com/thefelineco/ui/LoginScreenTest.kt b/app/src/androidTest/java/com/thefelineco/ui/LoginScreenTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..88c490bdc33ad2bde41948c1046bcdc3bd3b7e77
+--- /dev/null
++++ b/app/src/androidTest/java/com/thefelineco/ui/LoginScreenTest.kt
+@@ -0,0 +1,48 @@
++package com.thefelineco.ui
++
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import com.thefelineco.ui.auth.LoginContent
++import com.thefelineco.ui.auth.LoginEvent
++import com.thefelineco.ui.auth.LoginUiState
++import com.thefelineco.ui.theme.FelineTheme
++import org.junit.Assert.assertTrue
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/** UI tests for the stateless login form. */
++@RunWith(AndroidJUnit4::class)
++class LoginScreenTest {
++    @get:Rule val compose = createComposeRule()
++
++    @Test
++    fun fieldAndFormErrorsAreShown() {
++        compose.setContent {
++            FelineTheme {
++                LoginContent(
++                    state = LoginUiState(emailError = "Enter a valid email address", formError = "Incorrect email or password"),
++                    onEvent = {},
++                    onCreateAccount = {},
++                )
++            }
++        }
++        compose.onNodeWithText("Enter a valid email address").assertIsDisplayed()
++        compose.onNodeWithText("Incorrect email or password").assertIsDisplayed()
++    }
++
++    @Test
++    fun demoButtonsSendTheRightEvents() {
++        val events = mutableListOf<LoginEvent>()
++        compose.setContent {
++            FelineTheme { LoginContent(state = LoginUiState(), onEvent = { events += it }, onCreateAccount = {}) }
++        }
++        compose.onNodeWithText("Admin", substring = true).performClick()
++        compose.onNodeWithText("Sign in").performClick()
++        assertTrue(events.contains(LoginEvent.UseDemo(admin = true)))
++        assertTrue(events.contains(LoginEvent.Submit))
++    }
++}
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 652eeaad28c1dbc24b2806e5a41144f342b464b6..e58cd2f1d0a3f7280c887e287281cff1b71d36ab 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -27,6 +27,8 @@ androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+ androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
++androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
++androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+ androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+ androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+ androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }

@@ -1,5 +1,9 @@
 # The Feline Co. — notes for Claude sessions
 
+> **Local rebuild in a different repo?** If you are running inside the owner's *new* repository and this
+> folder is `../feline-source`, **ignore this file**. Follow that repo's own `CLAUDE.md`
+> (from `handover/CLAUDE.md`): never commit or push, apply `handover/patches` in order, keep `WORKLOG.md`.
+
 Android app (Kotlin, Jetpack Compose) for a university mobile development project: a premium,
 cats-only adoption + pet-shop app with a credit system and an admin side. The owner tests it in
 Android Studio on a **Samsung tablet** and reports issues back. The written report is out of scope.
@@ -31,6 +35,11 @@ Run `tools/compile-check/run.sh` (set `GRADLE=/path/to/gradle` if `gradle` isn't
 It compiles all app Kotlin against desktop Compose with stand-ins for Android-only APIs and runs the JVM
 unit tests. If you call a new Android-only API, add a faithful stand-in under `tools/compile-check/stubs/`.
 It can't check Room's annotation processor, resources or the manifest; review those by hand.
+
+## Handover
+`handover/` holds the stage-by-stage rebuild kit for the owner's new repo: 65 compile-verified patches,
+`BUILD_PLAN.md`, the local `CLAUDE.md`, the starter `WORKLOG.md` and setup steps (`handover/README.md`).
+If app code changes here, the patches no longer match. Regenerate them, or tell the owner.
 
 ## Git
 - Work branch: `claude/dreamy-hypatia-8zfjtr` (repo `anasalazad/Project-2-`). Commit per feature with clear messages.

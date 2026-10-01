@@ -1,0 +1,88 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index 9680029d69b4e7b8e65882d1bca21c99ae5204de..b2519fb9cdd4bfa44b2f30f495fcaba2cf16c0e0 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -18,6 +18,7 @@ import com.thefelineco.ui.catdetail.CatDetailViewModel
+ import com.thefelineco.ui.home.HomeViewModel
+ import com.thefelineco.ui.navigation.AdoptRoute
+ import com.thefelineco.ui.navigation.CatDetailRoute
++import com.thefelineco.ui.profile.ProfileViewModel
+ import com.thefelineco.ui.shop.ShopViewModel
+ 
+ /**
+@@ -46,6 +47,9 @@ object AppViewModelProvider {
+         initializer { BookingsViewModel(container().userRepository, container().bookingRepository) }
+         initializer { ShopViewModel(container().userRepository, container().shopRepository) }
+         initializer { BasketViewModel(container().userRepository, container().shopRepository) }
++        initializer {
++            ProfileViewModel(container().userRepository, container().shopRepository, container().settingsStore)
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/profile/ProfileViewModel.kt b/app/src/main/java/com/thefelineco/ui/profile/ProfileViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f2362e054320b09cddae3d98c93c3790b00bb71
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/profile/ProfileViewModel.kt
+@@ -0,0 +1,60 @@
++package com.thefelineco.ui.profile
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.SettingsStore
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.model.CreditTransaction
++import com.thefelineco.domain.model.Order
++import com.thefelineco.domain.model.User
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++
++data class ProfileUiState(
++    val isLoading: Boolean = true,
++    val user: User? = null,
++    val transactions: List<CreditTransaction> = emptyList(),
++    val orders: List<Order> = emptyList(),
++    val darkTheme: Boolean = true,
++) {
++    val totalEarned: Int get() = transactions.filter { it.amount > 0 }.sumOf { it.amount }
++    val totalSpent: Int get() = -transactions.filter { it.amount < 0 }.sumOf { it.amount }
++}
++
++/** Account, credit wallet history, orders and the theme setting. */
++@OptIn(ExperimentalCoroutinesApi::class)
++class ProfileViewModel(
++    private val userRepository: UserRepository,
++    shopRepository: ShopRepository,
++    private val settingsStore: SettingsStore,
++) : ViewModel() {
++
++    private val transactions: Flow<List<CreditTransaction>> = userRepository.currentUser.flatMapLatest { user ->
++        if (user == null) flowOf(emptyList()) else userRepository.observeTransactions(user.id)
++    }
++
++    private val orders: Flow<List<Order>> = userRepository.currentUser.flatMapLatest { user ->
++        if (user == null) flowOf(emptyList()) else shopRepository.observeOrders(user.id)
++    }
++
++    val uiState: StateFlow<ProfileUiState> = combine(
++        userRepository.currentUser,
++        transactions,
++        orders,
++        settingsStore.darkTheme,
++    ) { user, history, orderList, dark ->
++        ProfileUiState(isLoading = false, user = user, transactions = history, orders = orderList, darkTheme = dark)
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfileUiState())
++
++    fun setDarkTheme(enabled: Boolean) {
++        viewModelScope.launch { settingsStore.setDarkTheme(enabled) }
++    }
++}

@@ -1,0 +1,261 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+index dfcc7e4cbba5c9f2f2204fa722cb2c9ced22f44f..e90aa7fb0b2d32a0d1121893f15dae46c9e2c795 100644
+--- a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -12,6 +12,7 @@ import com.thefelineco.ui.MainViewModel
+ import com.thefelineco.ui.adopt.AdoptViewModel
+ import com.thefelineco.ui.auth.LoginViewModel
+ import com.thefelineco.ui.auth.RegisterViewModel
++import com.thefelineco.ui.bookings.BookingsViewModel
+ import com.thefelineco.ui.catdetail.CatDetailViewModel
+ import com.thefelineco.ui.home.HomeViewModel
+ import com.thefelineco.ui.navigation.AdoptRoute
+@@ -40,6 +41,7 @@ object AppViewModelProvider {
+                 userRepository = container().userRepository,
+             )
+         }
++        initializer { BookingsViewModel(container().userRepository, container().bookingRepository) }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/thefelineco/ui/bookings/BookingsScreen.kt b/app/src/main/java/com/thefelineco/ui/bookings/BookingsScreen.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ffcd269b09cc12bd233f684e5459cec93c2e535
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/bookings/BookingsScreen.kt
+@@ -0,0 +1,142 @@
++package com.thefelineco.ui.bookings
++
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.statusBarsPadding
++import androidx.compose.foundation.lazy.grid.GridCells
++import androidx.compose.foundation.lazy.grid.GridItemSpan
++import androidx.compose.foundation.lazy.grid.LazyGridItemScope
++import androidx.compose.foundation.lazy.grid.LazyGridScope
++import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
++import androidx.compose.foundation.lazy.grid.items
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.EventBusy
++import androidx.compose.material.icons.filled.EventAvailable
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedButton
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.compose.viewModel
++import com.thefelineco.di.AppViewModelProvider
++import com.thefelineco.domain.model.Booking
++import com.thefelineco.domain.model.BookingStatus
++import com.thefelineco.ui.common.LocalSnackbarHostState
++import com.thefelineco.ui.components.BookingCard
++import com.thefelineco.ui.components.ConfirmDialog
++import com.thefelineco.ui.components.EmptyState
++import com.thefelineco.ui.components.LoadingState
++import com.thefelineco.ui.components.SectionHeader
++
++/** "My bookings": upcoming appointments (cancellable) and past ones. */
++@Composable
++fun BookingsScreen(
++    onFindCat: () -> Unit,
++    viewModel: BookingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
++) {
++    val state by viewModel.uiState.collectAsStateWithLifecycle()
++    val snackbar = LocalSnackbarHostState.current
++    LaunchedEffect(viewModel) {
++        viewModel.messages.collect { snackbar.showSnackbar(it) }
++    }
++    BookingsContent(state, onCancel = viewModel::cancel, onFindCat = onFindCat)
++}
++
++@Composable
++fun BookingsContent(state: BookingsUiState, onCancel: (Booking) -> Unit, onFindCat: () -> Unit) {
++    var toCancel by remember { mutableStateOf<Booking?>(null) }
++
++    Column(Modifier.fillMaxSize().statusBarsPadding()) {
++        Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp)) {
++            Text("My bookings", style = MaterialTheme.typography.headlineLarge)
++            Text(
++                "Your meet & greet appointments at The Feline Co.",
++                style = MaterialTheme.typography.bodyLarge,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++        }
++        Box(Modifier.weight(1f)) {
++            when {
++                state.isLoading -> LoadingState()
++                state.upcoming.isEmpty() && state.past.isEmpty() -> EmptyState(
++                    title = "No bookings yet",
++                    message = "Find a cat you love and book a meet & greet. Cats aged 2+ are free to adopt!",
++                    icon = Icons.Filled.EventAvailable,
++                    actionLabel = "Find a cat",
++                    onAction = onFindCat,
++                    modifier = Modifier.align(Alignment.Center),
++                )
++                else -> LazyVerticalGrid(
++                    columns = GridCells.Adaptive(420.dp),
++                    contentPadding = PaddingValues(24.dp),
++                    horizontalArrangement = Arrangement.spacedBy(16.dp),
++                    verticalArrangement = Arrangement.spacedBy(16.dp),
++                    modifier = Modifier.fillMaxSize(),
++                ) {
++                    section("Upcoming", "Held until your visit", state.upcoming) { booking ->
++                        BookingCard(booking, Modifier.animateItem()) {
++                            Text(
++                                if (booking.status == BookingStatus.CONFIRMED) "Confirmed by our team. See you soon!"
++                                else "Waiting for our team to confirm. We'll be in touch shortly.",
++                                style = MaterialTheme.typography.bodyMedium,
++                                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                            )
++                            Row(Modifier.align(Alignment.End)) {
++                                OutlinedButton(onClick = { toCancel = booking }) { Text("Cancel booking") }
++                            }
++                        }
++                    }
++                    section("Past", null, state.past) { booking ->
++                        BookingCard(booking, Modifier.animateItem())
++                    }
++                }
++            }
++        }
++    }
++
++    toCancel?.let { booking ->
++        ConfirmDialog(
++            title = "Cancel your visit with ${booking.catName}?",
++            message = buildString {
++                append("${booking.catName} will become available to other families.")
++                if (booking.feeCredits > 0) append(" Your ${booking.feeCredits} credits will be refunded straight away.")
++            },
++            confirmLabel = "Cancel booking",
++            dismissLabel = "Keep booking",
++            destructive = true,
++            icon = Icons.Filled.EventBusy,
++            onConfirm = {
++                onCancel(booking)
++                toCancel = null
++            },
++            onDismiss = { toCancel = null },
++        )
++    }
++}
++
++/** A full-width section header followed by its cards. Skipped entirely when [items] is empty. */
++private fun LazyGridScope.section(
++    title: String,
++    subtitle: String?,
++    items: List<Booking>,
++    card: @Composable LazyGridItemScope.(Booking) -> Unit,
++) {
++    if (items.isEmpty()) return
++    item(key = "header-$title", span = { GridItemSpan(maxLineSpan) }) {
++        SectionHeader(title = title, subtitle = subtitle)
++    }
++    items(items, key = { it.id }) { booking -> card(this, booking) }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/bookings/BookingsViewModel.kt b/app/src/main/java/com/thefelineco/ui/bookings/BookingsViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b40426b7ddfc047957c4ed0849fb272c5045877
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/bookings/BookingsViewModel.kt
+@@ -0,0 +1,64 @@
++package com.thefelineco.ui.bookings
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.BookingRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.model.Booking
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.receiveAsFlow
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++
++data class BookingsUiState(
++    val isLoading: Boolean = true,
++    val upcoming: List<Booking> = emptyList(),
++    val past: List<Booking> = emptyList(),
++)
++
++/** The signed-in customer's meet & greet appointments. */
++class BookingsViewModel(
++    userRepository: UserRepository,
++    private val bookingRepository: BookingRepository,
++) : ViewModel() {
++
++    @OptIn(ExperimentalCoroutinesApi::class)
++    val uiState: StateFlow<BookingsUiState> = userRepository.currentUser
++        .flatMapLatest { user ->
++            if (user == null) flowOf(BookingsUiState(isLoading = false))
++            else bookingRepository.observeBookingsForUser(user.id).map { bookings ->
++                val (active, finished) = bookings.partition { it.status.isActive }
++                BookingsUiState(
++                    isLoading = false,
++                    upcoming = active.sortedWith(compareBy({ it.dateEpochDay }, { it.timeSlot })),
++                    past = finished,
++                )
++            }
++        }
++        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookingsUiState())
++
++    private val _messages = Channel<String>(Channel.BUFFERED)
++
++    /** One-off messages for the snackbar. */
++    val messages: Flow<String> = _messages.receiveAsFlow()
++
++    fun cancel(booking: Booking) {
++        viewModelScope.launch {
++            bookingRepository.cancel(booking.id)
++                .onSuccess {
++                    _messages.send(
++                        if (booking.feeCredits > 0) "Booking cancelled. ${booking.feeCredits} credits refunded."
++                        else "Booking cancelled."
++                    )
++                }
++                .onFailure { _messages.send(it.message ?: "Couldn't cancel the booking") }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt b/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt
+index 13fcabe9f6214ad7e7044dc539fdc14df00cac29..55b7d25cfa90ae3c662dc55f255f1c0967a05d9d 100644
+--- a/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt
++++ b/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt
+@@ -13,6 +13,7 @@ import com.thefelineco.domain.model.Booking
+ import com.thefelineco.domain.model.User
+ import com.thefelineco.ui.adopt.AdoptScreen
+ import com.thefelineco.ui.booking.BookMeetAndGreet
++import com.thefelineco.ui.bookings.BookingsScreen
+ import com.thefelineco.ui.catdetail.CatDetailScreen
+ import com.thefelineco.ui.common.ComingSoonScreen
+ import com.thefelineco.ui.common.formatLong
+@@ -69,7 +70,9 @@ fun FelineNavHost(
+         }
+         composable<ShopRoute> { ComingSoonScreen("Shop") }
+         composable<BasketRoute> { ComingSoonScreen("Basket") }
+-        composable<BookingsRoute> { ComingSoonScreen("My bookings") }
++        composable<BookingsRoute> {
++            BookingsScreen(onFindCat = { navController.navigateToTopLevel(AdoptRoute()) })
++        }
+         composable<ProfileRoute> {
+             ComingSoonScreen(
+                 title = "Hi, ${user.firstName}",

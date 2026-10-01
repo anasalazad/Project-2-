@@ -1,0 +1,143 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index c3e7b3eaf8aa425753a79a18fefefec91d05b036..23b3a5f544b2cbac9caaae0e93fd229a1497445e 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -57,6 +57,8 @@ dependencies {
+     implementation(libs.androidx.material3)
+     implementation(libs.androidx.material.icons.extended)
+ 
++    implementation(libs.coil.compose)
++
+     testImplementation(libs.junit)
+ 
+     debugImplementation(libs.androidx.ui.tooling)
+diff --git a/app/src/main/java/com/thefelineco/ui/components/AssetImage.kt b/app/src/main/java/com/thefelineco/ui/components/AssetImage.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b7f5b4fb7e7a81c27d72bbbebc4adbd308f749b
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/components/AssetImage.kt
+@@ -0,0 +1,90 @@
++package com.thefelineco.ui.components
++
++import android.annotation.SuppressLint
++import android.content.Context
++import androidx.annotation.DrawableRes
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Pets
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import coil.compose.AsyncImage
++import com.thefelineco.ui.theme.Crimson
++import com.thefelineco.ui.theme.Onyx
++import com.thefelineco.ui.theme.RubyDeep
++
++/**
++ * Shows a photo from res/drawable-nodpi by file name (without extension), e.g. "cat_mochi".
++ *
++ * Photos are added by hand (see ASSETS.md), so a missing file must not break the build. When the
++ * file doesn't exist, a branded placeholder is shown instead. Coil loads the image and downsamples
++ * it to the size on screen, which keeps large photos from using too much memory on the tablet.
++ */
++@Composable
++fun AssetImage(
++    name: String,
++    contentDescription: String?,
++    modifier: Modifier = Modifier,
++    contentScale: ContentScale = ContentScale.Crop,
++    placeholderLabel: String? = null,
++) {
++    val context = LocalContext.current
++    val resId = remember(name) { context.drawableIdOrNull(name) }
++    if (resId != null) {
++        AsyncImage(
++            model = resId,
++            contentDescription = contentDescription,
++            contentScale = contentScale,
++            modifier = modifier,
++        )
++    } else {
++        ImagePlaceholder(label = placeholderLabel, modifier = modifier)
++    }
++}
++
++/** Crimson-to-onyx gradient with a paw. Used when a photo hasn't been added yet. */
++@Composable
++fun ImagePlaceholder(label: String?, modifier: Modifier = Modifier) {
++    Box(
++        modifier.background(Brush.linearGradient(listOf(Crimson, RubyDeep, Onyx))),
++        contentAlignment = Alignment.Center,
++    ) {
++        PawPattern(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.onPrimary, alpha = 0.08f, count = 6, seed = label?.length ?: 3)
++        Icon(
++            Icons.Filled.Pets,
++            contentDescription = null,
++            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
++            modifier = Modifier.fillMaxSize(0.28f),
++        )
++        if (label != null) {
++            Text(
++                label,
++                style = MaterialTheme.typography.titleMedium,
++                color = MaterialTheme.colorScheme.onPrimary,
++                textAlign = TextAlign.Center,
++                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
++            )
++        }
++    }
++}
++
++/** Resource id of a drawable by name, or null if the file hasn't been added. */
++@SuppressLint("DiscouragedApi") // Lookup by name lets photos be dropped in without code changes.
++@DrawableRes
++fun Context.drawableIdOrNull(name: String): Int? =
++    if (name.isBlank()) null
++    else resources.getIdentifier(name, "drawable", packageName).takeIf { it != 0 }
+diff --git a/app/src/main/res/drawable-nodpi/.gitkeep b/app/src/main/res/drawable-nodpi/.gitkeep
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/app/src/main/res/raw/keep.xml b/app/src/main/res/raw/keep.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..9bbd10b79d4c2953ca71986c676bb512a09719a4
+--- /dev/null
++++ b/app/src/main/res/raw/keep.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Photos and fonts are looked up by name at runtime (see AssetImage.kt / Type.kt),
++     so tell the resource shrinker never to strip them. -->
++<resources xmlns:tools="http://schemas.android.com/tools"
++    tools:keep="@drawable/cat_*,@drawable/product_*,@drawable/hero_*,@drawable/banner_*,@drawable/login_*,@font/*" />
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 8f497698f62a64caedc795e65543d1606108662a..50ffee9a27d376607b568ae14406cf0b20415a90 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -5,6 +5,7 @@ coreKtx = "1.15.0"
+ lifecycle = "2.8.7"
+ activityCompose = "1.9.3"
+ composeBom = "2024.12.01"
++coil = "2.7.0"
+ junit = "4.13.2"
+ 
+ [libraries]
+@@ -18,6 +19,7 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+ androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
++coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+ junit = { group = "junit", name = "junit", version.ref = "junit" }
+ 
+ [plugins]

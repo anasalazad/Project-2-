@@ -1,0 +1,564 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index d8d99ecd131c67d8b91653a9261a57593b910bf1..2a9f3a46bd3eaca2597df390bf38b0ef4046a29c 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -4,6 +4,7 @@ plugins {
+     alias(libs.plugins.android.application)
+     alias(libs.plugins.kotlin.android)
+     alias(libs.plugins.kotlin.compose)
++    alias(libs.plugins.kotlin.serialization)
+     alias(libs.plugins.kotlin.parcelize)
+     alias(libs.plugins.ksp)
+ }
+@@ -65,6 +66,9 @@ dependencies {
+     implementation(libs.androidx.material3)
+     implementation(libs.androidx.material.icons.extended)
+ 
++    implementation(libs.androidx.navigation.compose)
++    implementation(libs.kotlinx.serialization.json)
++
+     implementation(libs.androidx.room.runtime)
+     implementation(libs.androidx.room.ktx)
+     ksp(libs.androidx.room.compiler)
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/AuthLayout.kt b/app/src/main/java/com/thefelineco/ui/auth/AuthLayout.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e6d7fcee480e775cf4a5710a3c5c35e4059dbcb
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/AuthLayout.kt
+@@ -0,0 +1,128 @@
++package com.thefelineco.ui.auth
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ColumnScope
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.imePadding
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.WindowInsetsSides
++import androidx.compose.foundation.layout.only
++import androidx.compose.foundation.layout.systemBars
++import androidx.compose.foundation.layout.systemBarsPadding
++import androidx.compose.foundation.layout.windowInsetsPadding
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.unit.dp
++import com.thefelineco.ui.components.AssetImage
++import com.thefelineco.ui.components.FelineLogo
++import com.thefelineco.ui.components.PawPattern
++import com.thefelineco.ui.theme.Mist
++import com.thefelineco.ui.theme.Onyx
++import com.thefelineco.ui.theme.Silver
++
++/**
++ * Shared frame for Login and Register: a photo brand panel beside the form on tablets, or a short
++ * banner above it on phones.
++ */
++@Composable
++fun AuthLayout(
++    title: String,
++    subtitle: String,
++    content: @Composable ColumnScope.() -> Unit,
++) {
++    BoxWithConstraints(Modifier.fillMaxSize()) {
++        if (maxWidth >= 840.dp) {
++            Row(Modifier.fillMaxSize()) {
++                BrandPanel(Modifier.weight(1.1f).fillMaxHeight(), large = true)
++                FormColumn(title, subtitle, Modifier.weight(1f).fillMaxHeight(), belowBanner = false, content)
++            }
++        } else {
++            // Read the constraint here: layout scopes can't see the outer scope's members implicitly.
++            val bannerHeight = if (maxHeight > 700.dp) 260.dp else 180.dp
++            Column(Modifier.fillMaxSize()) {
++                BrandPanel(Modifier.fillMaxWidth().height(bannerHeight), large = false)
++                FormColumn(title, subtitle, Modifier.weight(1f), belowBanner = true, content)
++            }
++        }
++    }
++}
++
++@Composable
++private fun BrandPanel(modifier: Modifier, large: Boolean) {
++    Box(modifier.background(Onyx)) {
++        AssetImage("login_background", contentDescription = null, modifier = Modifier.fillMaxSize())
++        Box(
++            Modifier.fillMaxSize().background(
++                Brush.verticalGradient(0f to Onyx.copy(alpha = 0.45f), 0.5f to Color.Transparent, 1f to Onyx.copy(alpha = 0.95f))
++            )
++        )
++        PawPattern(Modifier.fillMaxSize(), color = Color.White, alpha = 0.06f, count = if (large) 18 else 8)
++        Column(
++            Modifier.align(Alignment.BottomStart).systemBarsPadding().padding(if (large) 48.dp else 24.dp),
++            verticalArrangement = Arrangement.spacedBy(12.dp),
++        ) {
++            FelineLogo(markSize = if (large) 64.dp else 44.dp, textColor = Mist)
++            if (large) {
++                Text("Every cat deserves a crown.", style = MaterialTheme.typography.displaySmall, color = Mist)
++                Text(
++                    "Adopt a companion, spoil them with the very best, and earn rewards along the way.",
++                    style = MaterialTheme.typography.bodyLarge,
++                    color = Silver,
++                    modifier = Modifier.widthIn(max = 460.dp),
++                )
++            }
++        }
++    }
++}
++
++@Composable
++private fun FormColumn(
++    title: String,
++    subtitle: String,
++    modifier: Modifier,
++    /** On phones the form sits under the photo banner, which already covers the status bar. */
++    belowBanner: Boolean,
++    content: @Composable ColumnScope.() -> Unit,
++) {
++    Box(modifier.background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
++        PawPattern(Modifier.fillMaxSize(), count = 10, seed = 21)
++        // Wraps its content height, so the Box centres it when short and it scrolls when tall
++        // (for example, with the keyboard open).
++        Column(
++            Modifier
++                .fillMaxWidth()
++                .windowInsetsPadding(
++                    if (belowBanner) WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
++                    else WindowInsets.systemBars
++                )
++                .imePadding()
++                .verticalScroll(rememberScrollState())
++                .padding(horizontal = 32.dp, vertical = 32.dp),
++            horizontalAlignment = Alignment.CenterHorizontally,
++        ) {
++            Column(Modifier.widthIn(max = 440.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++                Text(title, style = MaterialTheme.typography.headlineLarge)
++                Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                Box(Modifier.height(8.dp))
++                content()
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/AuthNavHost.kt b/app/src/main/java/com/thefelineco/ui/auth/AuthNavHost.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..036248af6154f7892927ca71ea93ece7ca86cc97
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/AuthNavHost.kt
+@@ -0,0 +1,22 @@
++package com.thefelineco.ui.auth
++
++import androidx.compose.runtime.Composable
++import androidx.navigation.compose.NavHost
++import androidx.navigation.compose.composable
++import androidx.navigation.compose.rememberNavController
++import com.thefelineco.ui.navigation.LoginRoute
++import com.thefelineco.ui.navigation.RegisterRoute
++
++/** Navigation for signed-out users: Login ⇄ Register. */
++@Composable
++fun AuthNavHost() {
++    val navController = rememberNavController()
++    NavHost(navController = navController, startDestination = LoginRoute) {
++        composable<LoginRoute> {
++            LoginScreen(onCreateAccount = { navController.navigate(RegisterRoute) { launchSingleTop = true } })
++        }
++        composable<RegisterRoute> {
++            RegisterScreen(onBackToLogin = { navController.popBackStack() })
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/FormErrorBanner.kt b/app/src/main/java/com/thefelineco/ui/auth/FormErrorBanner.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cefee86c8b7dcb6d5af9205a6a50ab582630cde
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/FormErrorBanner.kt
+@@ -0,0 +1,35 @@
++package com.thefelineco.ui.auth
++
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.ErrorOutline
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.semantics.LiveRegionMode
++import androidx.compose.ui.semantics.liveRegion
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.unit.dp
++
++/** Error message for the whole form (e.g. wrong password). Screen readers announce it straight away. */
++@Composable
++fun FormErrorBanner(message: String, modifier: Modifier = Modifier) {
++    Surface(
++        color = MaterialTheme.colorScheme.errorContainer,
++        contentColor = MaterialTheme.colorScheme.onErrorContainer,
++        shape = MaterialTheme.shapes.medium,
++        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
++    ) {
++        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
++            Icon(Icons.Filled.ErrorOutline, contentDescription = null)
++            Text(message, style = MaterialTheme.typography.bodyMedium)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/LoginScreen.kt b/app/src/main/java/com/thefelineco/ui/auth/LoginScreen.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d70f819543741aeeae244081b6f09c458d52395f
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/LoginScreen.kt
+@@ -0,0 +1,116 @@
++package com.thefelineco.ui.auth
++
++import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.AdminPanelSettings
++import androidx.compose.material.icons.filled.Email
++import androidx.compose.material.icons.filled.Pets
++import androidx.compose.material3.Button
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedButton
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.compose.viewModel
++import com.thefelineco.di.AppViewModelProvider
++import com.thefelineco.ui.components.PasswordField
++import com.thefelineco.ui.components.ValidatedTextField
++
++/** Sign-in screen (stateful wrapper). */
++@Composable
++fun LoginScreen(
++    onCreateAccount: () -> Unit,
++    viewModel: LoginViewModel = viewModel(factory = AppViewModelProvider.Factory),
++) {
++    val state by viewModel.uiState.collectAsStateWithLifecycle()
++    LoginContent(state = state, onEvent = viewModel::onEvent, onCreateAccount = onCreateAccount)
++}
++
++/** Stateless sign-in form, easy to preview and test. */
++@Composable
++fun LoginContent(state: LoginUiState, onEvent: (LoginEvent) -> Unit, onCreateAccount: () -> Unit) {
++    AuthLayout(title = "Welcome back", subtitle = "Sign in to adopt, shop and track your bookings.") {
++        ValidatedTextField(
++            value = state.email,
++            onValueChange = { onEvent(LoginEvent.EmailChanged(it)) },
++            label = "Email",
++            error = state.emailError,
++            leadingIcon = Icons.Filled.Email,
++            keyboardType = KeyboardType.Email,
++        )
++        PasswordField(
++            value = state.password,
++            onValueChange = { onEvent(LoginEvent.PasswordChanged(it)) },
++            label = "Password",
++            error = state.passwordError,
++            imeAction = ImeAction.Done,
++            onImeAction = { onEvent(LoginEvent.Submit) },
++        )
++        AnimatedVisibility(visible = state.formError != null) {
++            FormErrorBanner(state.formError.orEmpty())
++        }
++        SubmitButton(text = "Sign in", loading = state.isSubmitting, onClick = { onEvent(LoginEvent.Submit) })
++
++        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
++            HorizontalDivider(Modifier.weight(1f))
++            Text(
++                "  or explore with a demo account  ",
++                style = MaterialTheme.typography.labelMedium,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++            )
++            HorizontalDivider(Modifier.weight(1f))
++        }
++        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++            OutlinedButton(
++                onClick = { onEvent(LoginEvent.UseDemo(admin = false)) },
++                enabled = !state.isSubmitting,
++                modifier = Modifier.weight(1f).height(52.dp),
++            ) {
++                Icon(Icons.Filled.Pets, null, Modifier.size(18.dp))
++                Text("  Customer")
++            }
++            OutlinedButton(
++                onClick = { onEvent(LoginEvent.UseDemo(admin = true)) },
++                enabled = !state.isSubmitting,
++                modifier = Modifier.weight(1f).height(52.dp),
++            ) {
++                Icon(Icons.Filled.AdminPanelSettings, null, Modifier.size(18.dp))
++                Text("  Admin")
++            }
++        }
++        TextButton(onClick = onCreateAccount, modifier = Modifier.align(Alignment.CenterHorizontally)) {
++            Text("New to The Feline Co.? Create an account")
++        }
++    }
++}
++
++/** Full-width primary button that shows a spinner while [loading]. */
++@Composable
++fun SubmitButton(text: String, loading: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
++    Button(onClick = onClick, enabled = !loading, modifier = modifier.fillMaxWidth().height(56.dp)) {
++        Box(contentAlignment = Alignment.Center) {
++            if (loading) {
++                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
++            } else {
++                Text(text, style = MaterialTheme.typography.titleMedium)
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/RegisterScreen.kt b/app/src/main/java/com/thefelineco/ui/auth/RegisterScreen.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0b1b03c321eda399179cca4a46bd7349aced4d04
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/RegisterScreen.kt
+@@ -0,0 +1,129 @@
++package com.thefelineco.ui.auth
++
++import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.selection.toggleable
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Email
++import androidx.compose.material.icons.filled.Person
++import androidx.compose.material.icons.filled.Redeem
++import androidx.compose.material3.Checkbox
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.lifecycle.viewmodel.compose.viewModel
++import com.thefelineco.di.AppViewModelProvider
++import com.thefelineco.domain.CreditRules
++import com.thefelineco.ui.components.PasswordField
++import com.thefelineco.ui.components.ValidatedTextField
++
++/** Create-account screen (stateful wrapper). */
++@Composable
++fun RegisterScreen(
++    onBackToLogin: () -> Unit,
++    viewModel: RegisterViewModel = viewModel(factory = AppViewModelProvider.Factory),
++) {
++    val state by viewModel.uiState.collectAsStateWithLifecycle()
++    RegisterContent(state, viewModel::onEvent, onBackToLogin)
++}
++
++@Composable
++fun RegisterContent(state: RegisterUiState, onEvent: (RegisterEvent) -> Unit, onBackToLogin: () -> Unit) {
++    AuthLayout(title = "Join The Feline Co.", subtitle = "Create your account to start your adoption journey.") {
++        WelcomeBonusCallout()
++        ValidatedTextField(
++            value = state.fullName,
++            onValueChange = { onEvent(RegisterEvent.FullNameChanged(it)) },
++            label = "Full name",
++            error = state.fullNameError,
++            leadingIcon = Icons.Filled.Person,
++        )
++        ValidatedTextField(
++            value = state.email,
++            onValueChange = { onEvent(RegisterEvent.EmailChanged(it)) },
++            label = "Email",
++            error = state.emailError,
++            leadingIcon = Icons.Filled.Email,
++            keyboardType = KeyboardType.Email,
++        )
++        PasswordField(
++            value = state.password,
++            onValueChange = { onEvent(RegisterEvent.PasswordChanged(it)) },
++            label = "Password",
++            error = state.passwordError,
++            helper = "At least 8 characters, with a letter and a number",
++        )
++        PasswordField(
++            value = state.confirmPassword,
++            onValueChange = { onEvent(RegisterEvent.ConfirmChanged(it)) },
++            label = "Confirm password",
++            error = state.confirmError,
++            imeAction = ImeAction.Done,
++        )
++        Column {
++            Row(
++                Modifier
++                    .fillMaxWidth()
++                    .toggleable(
++                        value = state.acceptedTerms,
++                        role = Role.Checkbox,
++                        onValueChange = { onEvent(RegisterEvent.TermsChanged(it)) },
++                    ),
++                verticalAlignment = Alignment.CenterVertically,
++            ) {
++                Checkbox(checked = state.acceptedTerms, onCheckedChange = null)
++                Text(
++                    "I agree to the adoption terms and to care for my cat for life.",
++                    style = MaterialTheme.typography.bodyMedium,
++                )
++            }
++            if (state.termsError != null) {
++                Text(
++                    state.termsError,
++                    color = MaterialTheme.colorScheme.error,
++                    style = MaterialTheme.typography.bodySmall,
++                    modifier = Modifier.padding(start = 48.dp),
++                )
++            }
++        }
++        AnimatedVisibility(visible = state.formError != null) {
++            FormErrorBanner(state.formError.orEmpty())
++        }
++        SubmitButton(text = "Create account", loading = state.isSubmitting, onClick = { onEvent(RegisterEvent.Submit) })
++        TextButton(onClick = onBackToLogin, modifier = Modifier.align(Alignment.CenterHorizontally)) {
++            Text("Already have an account? Sign in")
++        }
++    }
++}
++
++@Composable
++private fun WelcomeBonusCallout() {
++    Surface(
++        color = MaterialTheme.colorScheme.primaryContainer,
++        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
++        shape = MaterialTheme.shapes.medium,
++    ) {
++        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
++            Icon(Icons.Filled.Redeem, contentDescription = null)
++            Text(
++                "New members get ${CreditRules.WELCOME_BONUS} welcome credits to spend on adoption fees or treats.",
++                style = MaterialTheme.typography.bodyMedium,
++            )
++        }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/navigation/Routes.kt b/app/src/main/java/com/thefelineco/ui/navigation/Routes.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa4aee4279c334f3d4f61accbe2aae2264adf388
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/navigation/Routes.kt
+@@ -0,0 +1,29 @@
++package com.thefelineco.ui.navigation
++
++import kotlinx.serialization.Serializable
++
++/*
++ * Type-safe Navigation Compose routes. Arguments are constructor parameters, so the compiler
++ * checks them (for example, CatDetailRoute always carries a catId).
++ */
++
++// Signed out
++@Serializable data object LoginRoute
++@Serializable data object RegisterRoute
++
++// Customer
++@Serializable data object HomeRoute
++@Serializable data class AdoptRoute(val freeOnly: Boolean = false)
++@Serializable data class CatDetailRoute(val catId: Long)
++@Serializable data object ShopRoute
++@Serializable data object BasketRoute
++@Serializable data object BookingsRoute
++@Serializable data object ProfileRoute
++
++// Admin
++@Serializable data object AdminDashboardRoute
++@Serializable data object AdminCatsRoute
++@Serializable data class AdminCatEditRoute(val catId: Long = 0)
++@Serializable data object AdminBookingsRoute
++@Serializable data object AdminProductsRoute
++@Serializable data class AdminProductEditRoute(val productId: Long = 0)
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 26907ced0e80b6b3072d4df0c5c68c861f7d1b46..6b06219b5b5738d72f58d874b6882b4f5eea91be 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,6 +3,7 @@ plugins {
+     alias(libs.plugins.android.application) apply false
+     alias(libs.plugins.kotlin.android) apply false
+     alias(libs.plugins.kotlin.compose) apply false
++    alias(libs.plugins.kotlin.serialization) apply false
+     alias(libs.plugins.kotlin.parcelize) apply false
+     alias(libs.plugins.ksp) apply false
+ }
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 1afaf9d69006b38c2c6ee663c3c7f7882887e170..652eeaad28c1dbc24b2806e5a41144f342b464b6 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -6,8 +6,10 @@ coreKtx = "1.15.0"
+ lifecycle = "2.8.7"
+ activityCompose = "1.9.3"
+ composeBom = "2024.12.01"
++navigation = "2.8.5"
+ room = "2.6.1"
+ datastore = "1.1.1"
++serialization = "1.7.3"
+ coil = "2.7.0"
+ coroutines = "1.9.0"
+ junit = "4.13.2"
+@@ -27,10 +29,12 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+ androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
++androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+ androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
++kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+ junit = { group = "junit", name = "junit", version.ref = "junit" }
+@@ -41,5 +45,6 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
+ android-application = { id = "com.android.application", version.ref = "agp" }
+ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
++kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
+ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

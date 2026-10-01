@@ -1,0 +1,56 @@
+diff --git a/README.md b/README.md
+index 540e940935332af69eaf5e1045b7d52f34570516..662b869159a83a731a8864eb7ae7a40f353bfc1b 100644
+--- a/README.md
++++ b/README.md
+@@ -3,6 +3,49 @@
+ A premium, cats-only adoption and pet-supply app for Android tablets, built with Kotlin and Jetpack Compose.
+ 
+ Customers browse cats, book a meet & greet, adopt with credits (cats aged two and over are free) and spend
+-their credits on food and toys. Admins manage listings, appointments and products.
++their credits on Royal Feline food and toys. Admins manage listings, appointments and products.
+ 
+-> Work in progress: features are added stage by stage. See the commit history.
++## Features
++
++| Area | Highlights |
++|---|---|
++| Adopt | Search, filters (fee, age, sex, coat, compatibility, favourites), five sort orders, adaptive grid |
++| Cat profile | Photo, story, personality, health and compatibility, fee vs. balance, similar cats |
++| Booking | `BookingActivity`: date strip, live slot availability, validated form, fee held as credits |
++| My bookings | Upcoming and past visits, cancel with automatic refund |
++| Shop and basket | Categories, sorting, product sheet with stock limits, persistent basket |
++| Checkout | `CheckoutActivity`: delivery options, conditional address fields, validation, credit checks |
++| Account | Credit balance, wallet history, orders, dark/light theme toggle |
++| Admin | Dashboard, add/edit/delete cats, confirm/decline/complete adoptions, product stock |
++| Favourites | Heart any cat, filter by favourites, favourites row on Home |
++
++## Architecture
++
++MVVM with unidirectional data flow (`UiState` + events), Room for local data, DataStore for the
++session and settings, manual dependency injection (`AppContainer`), and type-safe Navigation Compose.
++`MainActivity` hosts every screen; `BookingActivity` and `CheckoutActivity` receive Parcelable data
++and return their results through the Activity Result API.
++
++```
++ui (Compose screens + ViewModels)  →  domain (models, rules, validators)  ←  data (Room, repositories)
++```
++
++## Run it
++
++1. Open the project in Android Studio and let Gradle sync.
++2. Run the `app` configuration on a tablet or phone (minimum Android 8.0, API 26).
++
++### Demo accounts
++
++| Role | Email | Password |
++|---|---|---|
++| Customer (400 credits) | `demo@thefelineco.com` | `Demo123!` |
++| Admin | `admin@thefelineco.com` | `Admin123!` |
++
++The login screen also has one-tap **Customer** and **Admin** demo buttons.
++
++## Tests
++
++- **Unit tests:** `./gradlew test`, covering credit rules, search/filter/sort, validators and ViewModels.
++- **Instrumented tests:** `./gradlew connectedAndroidTest` with a device connected, covering Room credit and stock flows and the login UI.
++- **Manual test script:** see [`TESTING.md`](TESTING.md).

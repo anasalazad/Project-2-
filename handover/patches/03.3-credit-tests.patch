@@ -1,0 +1,106 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index bfbcf1a0406fed01bafd2c54421d977cbdfb725f..c3e7b3eaf8aa425753a79a18fefefec91d05b036 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -57,5 +57,7 @@ dependencies {
+     implementation(libs.androidx.material3)
+     implementation(libs.androidx.material.icons.extended)
+ 
++    testImplementation(libs.junit)
++
+     debugImplementation(libs.androidx.ui.tooling)
+ }
+diff --git a/app/src/test/java/com/thefelineco/domain/CatAgeLabelTest.kt b/app/src/test/java/com/thefelineco/domain/CatAgeLabelTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a9e4b04ec46acaeb668e7e79794c60412b7fab5
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/domain/CatAgeLabelTest.kt
+@@ -0,0 +1,18 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.Cat
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class CatAgeLabelTest {
++    @Test
++    fun `ages read naturally`() {
++        assertEquals("1 month", Cat.formatAge(1))
++        assertEquals("3 months", Cat.formatAge(3))
++        assertEquals("1 year", Cat.formatAge(12))
++        assertEquals("1 year 2 months", Cat.formatAge(14))
++        assertEquals("2 years 6 months", Cat.formatAge(30))
++        assertEquals("7 years", Cat.formatAge(84))
++        assertEquals("15 years", Cat.formatAge(185))
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/domain/CreditRulesTest.kt b/app/src/test/java/com/thefelineco/domain/CreditRulesTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..335251f486a68619d865f20266ef9eb7f031a5d7
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/domain/CreditRulesTest.kt
+@@ -0,0 +1,44 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.AgeGroup
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class CreditRulesTest {
++
++    @Test
++    fun `kittens under six months cost the kitten fee`() {
++        assertEquals(CreditRules.KITTEN_FEE, CreditRules.adoptionFee(0))
++        assertEquals(CreditRules.KITTEN_FEE, CreditRules.adoptionFee(5))
++    }
++
++    @Test
++    fun `cats from six months to just under two years cost the young fee`() {
++        assertEquals(CreditRules.YOUNG_FEE, CreditRules.adoptionFee(6))
++        assertEquals(CreditRules.YOUNG_FEE, CreditRules.adoptionFee(23))
++    }
++
++    @Test
++    fun `cats aged two and over are free`() {
++        assertEquals(0, CreditRules.adoptionFee(24))
++        assertEquals(0, CreditRules.adoptionFee(180))
++    }
++
++    @Test
++    fun `age groups have no gaps at the boundaries`() {
++        assertEquals(AgeGroup.KITTEN, AgeGroup.of(5))
++        assertEquals(AgeGroup.YOUNG, AgeGroup.of(6))
++        assertEquals(AgeGroup.ADULT, AgeGroup.of(24))
++        assertEquals(AgeGroup.SENIOR, AgeGroup.of(96))
++        assertEquals(AgeGroup.KITTEN, AgeGroup.of(-3)) // defensive: bad data never crashes
++    }
++
++    @Test
++    fun `affordability is inclusive of the exact balance`() {
++        assertTrue(CreditRules.canAfford(150, 150))
++        assertFalse(CreditRules.canAfford(149, 150))
++        assertTrue(CreditRules.canAfford(0, 0))
++    }
++}
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 1c7519b908e915d005852266adcd787da668aa6e..8f497698f62a64caedc795e65543d1606108662a 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -5,6 +5,7 @@ coreKtx = "1.15.0"
+ lifecycle = "2.8.7"
+ activityCompose = "1.9.3"
+ composeBom = "2024.12.01"
++junit = "4.13.2"
+ 
+ [libraries]
+ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+@@ -17,6 +18,7 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+ androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
++junit = { group = "junit", name = "junit", version.ref = "junit" }
+ 
+ [plugins]
+ android-application = { id = "com.android.application", version.ref = "agp" }

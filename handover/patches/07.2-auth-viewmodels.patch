@@ -1,0 +1,239 @@
+diff --git a/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..33f17264f2b9ea7b03c16bc2ef8e2129e1863d82
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/di/AppViewModelProvider.kt
+@@ -0,0 +1,26 @@
++package com.thefelineco.di
++
++import androidx.lifecycle.ViewModelProvider
++import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
++import androidx.lifecycle.viewmodel.CreationExtras
++import androidx.lifecycle.viewmodel.initializer
++import androidx.lifecycle.viewmodel.viewModelFactory
++import com.thefelineco.FelineApplication
++import com.thefelineco.ui.MainViewModel
++import com.thefelineco.ui.auth.LoginViewModel
++import com.thefelineco.ui.auth.RegisterViewModel
++
++/**
++ * Creates every ViewModel with its dependencies from [AppContainer].
++ * Usage: `viewModel(factory = AppViewModelProvider.Factory)`.
++ */
++object AppViewModelProvider {
++    val Factory: ViewModelProvider.Factory = viewModelFactory {
++        initializer { MainViewModel(container().userRepository, container().shopRepository) }
++        initializer { LoginViewModel(container().userRepository) }
++        initializer { RegisterViewModel(container().userRepository) }
++    }
++}
++
++/** The app's [AppContainer], taken from the Application object inside the ViewModel's creation extras. */
++fun CreationExtras.container(): AppContainer = (this[APPLICATION_KEY] as FelineApplication).container
+diff --git a/app/src/main/java/com/thefelineco/ui/MainViewModel.kt b/app/src/main/java/com/thefelineco/ui/MainViewModel.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..8726e678a2783e2ae6e6351d96b7cd3f1192095c
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/MainViewModel.kt
+@@ -0,0 +1,53 @@
++package com.thefelineco.ui
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.repository.ShopRepository
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.model.User
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.launch
++
++/** Who is using the app right now. MainActivity picks the auth flow or the main shell from this. */
++sealed interface SessionState {
++    data object Loading : SessionState
++    data object SignedOut : SessionState
++    data class SignedIn(val user: User) : SessionState
++
++    /** Stable key for animations: it changes only when the signed-in account changes. */
++    val contentKey: String
++        get() = when (this) {
++            Loading -> "loading"
++            SignedOut -> "signed-out"
++            is SignedIn -> "user-${user.id}"
++        }
++}
++
++/** App-wide state for MainActivity: the session and the basket badge count. */
++class MainViewModel(
++    private val userRepository: UserRepository,
++    shopRepository: ShopRepository,
++) : ViewModel() {
++
++    val session: StateFlow<SessionState> = userRepository.currentUser
++        .map { user -> if (user == null) SessionState.SignedOut else SessionState.SignedIn(user) }
++        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SessionState.Loading)
++
++    @OptIn(ExperimentalCoroutinesApi::class)
++    val basketCount: StateFlow<Int> = userRepository.currentUser
++        .flatMapLatest { user ->
++            if (user == null) flowOf(0)
++            else shopRepository.observeCart(user.id).map { lines -> lines.sumOf { it.quantity } }
++        }
++        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
++
++    fun logout() {
++        viewModelScope.launch { userRepository.logout() }
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/auth/AuthViewModels.kt b/app/src/main/java/com/thefelineco/ui/auth/AuthViewModels.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..545c25eb959cabfa21c0fb0ce92d7fdd65842d25
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/auth/AuthViewModels.kt
+@@ -0,0 +1,142 @@
++package com.thefelineco.ui.auth
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.thefelineco.data.local.seed.DatabaseSeeder
++import com.thefelineco.data.repository.UserRepository
++import com.thefelineco.domain.validation.Validators
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++
++// ---------- Login ----------
++
++data class LoginUiState(
++    val email: String = "",
++    val password: String = "",
++    val emailError: String? = null,
++    val passwordError: String? = null,
++    val formError: String? = null,
++    val isSubmitting: Boolean = false,
++)
++
++sealed interface LoginEvent {
++    data class EmailChanged(val value: String) : LoginEvent
++    data class PasswordChanged(val value: String) : LoginEvent
++    data object Submit : LoginEvent
++    /** Fills in a demo account and signs in straight away. */
++    data class UseDemo(val admin: Boolean) : LoginEvent
++}
++
++/**
++ * Sign-in form. When sign-in succeeds, the session changes and MainActivity swaps to the app shell,
++ * so there is no navigation event.
++ */
++class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
++    private val _uiState = MutableStateFlow(LoginUiState())
++    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
++
++    fun onEvent(event: LoginEvent) {
++        when (event) {
++            // Editing a field clears its error so the user isn't nagged while typing.
++            is LoginEvent.EmailChanged -> _uiState.update { it.copy(email = event.value, emailError = null, formError = null) }
++            is LoginEvent.PasswordChanged -> _uiState.update { it.copy(password = event.value, passwordError = null, formError = null) }
++            LoginEvent.Submit -> submit()
++            is LoginEvent.UseDemo -> {
++                _uiState.update {
++                    if (event.admin) it.copy(email = DatabaseSeeder.ADMIN_EMAIL, password = "Admin123!")
++                    else it.copy(email = DatabaseSeeder.DEMO_EMAIL, password = "Demo123!")
++                }
++                submit()
++            }
++        }
++    }
++
++    private fun submit() {
++        val state = _uiState.value
++        if (state.isSubmitting) return
++        val emailError = Validators.email(state.email)
++        val passwordError = if (state.password.isEmpty()) "Password is required" else null
++        if (emailError != null || passwordError != null) {
++            _uiState.update { it.copy(emailError = emailError, passwordError = passwordError) }
++            return
++        }
++        _uiState.update { it.copy(isSubmitting = true, formError = null) }
++        viewModelScope.launch {
++            userRepository.login(state.email, state.password).onFailure { error ->
++                _uiState.update { it.copy(isSubmitting = false, formError = error.message ?: "Couldn't sign in") }
++            }
++        }
++    }
++}
++
++// ---------- Register ----------
++
++data class RegisterUiState(
++    val fullName: String = "",
++    val email: String = "",
++    val password: String = "",
++    val confirmPassword: String = "",
++    val acceptedTerms: Boolean = false,
++    val fullNameError: String? = null,
++    val emailError: String? = null,
++    val passwordError: String? = null,
++    val confirmError: String? = null,
++    val termsError: String? = null,
++    val formError: String? = null,
++    val isSubmitting: Boolean = false,
++)
++
++sealed interface RegisterEvent {
++    data class FullNameChanged(val value: String) : RegisterEvent
++    data class EmailChanged(val value: String) : RegisterEvent
++    data class PasswordChanged(val value: String) : RegisterEvent
++    data class ConfirmChanged(val value: String) : RegisterEvent
++    data class TermsChanged(val accepted: Boolean) : RegisterEvent
++    data object Submit : RegisterEvent
++}
++
++/** Create-account form. New customers start with the welcome bonus. */
++class RegisterViewModel(private val userRepository: UserRepository) : ViewModel() {
++    private val _uiState = MutableStateFlow(RegisterUiState())
++    val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
++
++    fun onEvent(event: RegisterEvent) {
++        when (event) {
++            is RegisterEvent.FullNameChanged -> _uiState.update { it.copy(fullName = event.value, fullNameError = null) }
++            is RegisterEvent.EmailChanged -> _uiState.update { it.copy(email = event.value, emailError = null, formError = null) }
++            is RegisterEvent.PasswordChanged -> _uiState.update { it.copy(password = event.value, passwordError = null) }
++            is RegisterEvent.ConfirmChanged -> _uiState.update { it.copy(confirmPassword = event.value, confirmError = null) }
++            is RegisterEvent.TermsChanged -> _uiState.update { it.copy(acceptedTerms = event.accepted, termsError = null) }
++            RegisterEvent.Submit -> submit()
++        }
++    }
++
++    private fun submit() {
++        val s = _uiState.value
++        if (s.isSubmitting) return
++        val validated = s.copy(
++            fullNameError = Validators.name(s.fullName),
++            emailError = Validators.email(s.email),
++            passwordError = Validators.password(s.password),
++            confirmError = Validators.confirmPassword(s.password, s.confirmPassword),
++            termsError = if (s.acceptedTerms) null else "Please accept the adoption terms",
++        )
++        val hasErrors = listOf(
++            validated.fullNameError, validated.emailError, validated.passwordError,
++            validated.confirmError, validated.termsError,
++        ).any { it != null }
++        if (hasErrors) {
++            _uiState.value = validated
++            return
++        }
++        _uiState.update { it.copy(isSubmitting = true, formError = null) }
++        viewModelScope.launch {
++            userRepository.register(s.fullName, s.email, s.password).onFailure { error ->
++                _uiState.update { it.copy(isSubmitting = false, formError = error.message ?: "Couldn't create your account") }
++            }
++        }
++    }
++}

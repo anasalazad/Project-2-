@@ -1,0 +1,230 @@
+diff --git a/app/src/main/java/com/thefelineco/domain/CatQuery.kt b/app/src/main/java/com/thefelineco/domain/CatQuery.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..56b291ec8ad974911f121e2637ec0a68aef80560
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/CatQuery.kt
+@@ -0,0 +1,72 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.AgeGroup
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CoatLength
++import com.thefelineco.domain.model.Sex
++
++/** Sort orders offered on the Adopt screen. */
++enum class CatSort(val label: String) {
++    NEWEST("Newest arrivals"),
++    NAME("Name (A–Z)"),
++    YOUNGEST("Youngest first"),
++    OLDEST("Oldest first"),
++    FEE_LOW("Lowest fee first"),
++}
++
++/**
++ * Everything the user has chosen on the Adopt screen. Empty sets mean "any".
++ *
++ * Kept as plain data with a pure [apply] function so search, filtering and sorting can be unit-tested
++ * without Android.
++ */
++data class CatQuery(
++    val text: String = "",
++    val ageGroups: Set<AgeGroup> = emptySet(),
++    val sexes: Set<Sex> = emptySet(),
++    val coats: Set<CoatLength> = emptySet(),
++    val goodWithKids: Boolean = false,
++    val goodWithCats: Boolean = false,
++    val goodWithDogs: Boolean = false,
++    val freeOnly: Boolean = false,
++    val statuses: Set<AdoptionStatus> = setOf(AdoptionStatus.AVAILABLE, AdoptionStatus.PENDING),
++    val sort: CatSort = CatSort.NEWEST,
++) {
++    /** Number of active filters (not counting text or sort), shown on the "Filters" button. */
++    val activeFilterCount: Int
++        get() = ageGroups.size + sexes.size + coats.size +
++            listOf(goodWithKids, goodWithCats, goodWithDogs, freeOnly).count { it }
++
++    /** Returns the cats that match this query, in the chosen order. */
++    fun apply(cats: List<Cat>): List<Cat> = cats
++        .asSequence()
++        .filter { it.status in statuses }
++        .filter { it.matchesText(text) }
++        .filter { ageGroups.isEmpty() || it.ageGroup in ageGroups }
++        .filter { sexes.isEmpty() || it.sex in sexes }
++        .filter { coats.isEmpty() || it.coat in coats }
++        .filter { !goodWithKids || it.goodWithKids }
++        .filter { !goodWithCats || it.goodWithCats }
++        .filter { !goodWithDogs || it.goodWithDogs }
++        .filter { !freeOnly || it.isFree }
++        .sortedWith(sort.comparator)
++        .toList()
++}
++
++/** Case-insensitive match on name, breed, colour and personality traits. */
++fun Cat.matchesText(text: String): Boolean {
++    val needle = text.trim()
++    if (needle.isEmpty()) return true
++    return listOf(name, breed, colour).any { it.contains(needle, ignoreCase = true) } ||
++        personality.any { it.contains(needle, ignoreCase = true) }
++}
++
++private val CatSort.comparator: Comparator<Cat>
++    get() = when (this) {
++        CatSort.NEWEST -> compareByDescending<Cat> { it.listedAt }.thenBy { it.name }
++        CatSort.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
++        CatSort.YOUNGEST -> compareBy<Cat> { it.ageMonths }.thenBy { it.name }
++        CatSort.OLDEST -> compareByDescending<Cat> { it.ageMonths }.thenBy { it.name }
++        CatSort.FEE_LOW -> compareBy<Cat> { it.adoptionFee }.thenBy { it.ageMonths }
++    }
+diff --git a/app/src/main/java/com/thefelineco/domain/ProductQuery.kt b/app/src/main/java/com/thefelineco/domain/ProductQuery.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..824f2b7f96c704f6b11cb666829076de850cb21a
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/ProductQuery.kt
+@@ -0,0 +1,36 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.Product
++import com.thefelineco.domain.model.ProductCategory
++
++/** Sort orders offered in the shop. */
++enum class ProductSort(val label: String) {
++    FEATURED("Featured"),
++    PRICE_LOW("Price: low to high"),
++    PRICE_HIGH("Price: high to low"),
++    NAME("Name (A–Z)"),
++}
++
++/** Search, category filter and sort for the shop. A null [category] means all categories. */
++data class ProductQuery(
++    val text: String = "",
++    val category: ProductCategory? = null,
++    val inStockOnly: Boolean = false,
++    val sort: ProductSort = ProductSort.FEATURED,
++) {
++    fun apply(products: List<Product>): List<Product> {
++        val needle = text.trim()
++        val filtered = products.filter { p ->
++            (category == null || p.category == category) &&
++                (!inStockOnly || p.inStock) &&
++                (needle.isEmpty() || p.name.contains(needle, true) ||
++                    p.brand.contains(needle, true) || p.category.label.contains(needle, true))
++        }
++        return when (sort) {
++            ProductSort.FEATURED -> filtered // seed order is the curated "featured" order
++            ProductSort.PRICE_LOW -> filtered.sortedBy { it.priceCredits }
++            ProductSort.PRICE_HIGH -> filtered.sortedByDescending { it.priceCredits }
++            ProductSort.NAME -> filtered.sortedBy { it.name.lowercase() }
++        }
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt b/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..cfe7a8137c2f2c3b15b85cfa5d4c6e79943ac6c7
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/domain/CatQueryTest.kt
+@@ -0,0 +1,71 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.AgeGroup
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CoatLength
++import com.thefelineco.domain.model.Sex
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class CatQueryTest {
++
++    private val cats = listOf(
++        testCat(id = 1, name = "Mochi", breed = "Ragdoll", ageMonths = 3, coat = CoatLength.LONG, listedAt = 300),
++        testCat(id = 2, name = "Archie", breed = "Maine Coon", ageMonths = 156, sex = Sex.MALE, goodWithDogs = false, listedAt = 100),
++        testCat(id = 3, name = "Luna", breed = "Russian Blue", ageMonths = 10, goodWithKids = false, personality = listOf("Shy"), listedAt = 200),
++        testCat(id = 4, name = "Felix", ageMonths = 96, sex = Sex.MALE, status = AdoptionStatus.ADOPTED, listedAt = 400),
++        testCat(id = 5, name = "Bella", ageMonths = 40, status = AdoptionStatus.PENDING, listedAt = 50),
++    )
++
++    private fun CatQuery.names(): List<String> = apply(cats).map(Cat::name)
++
++    @Test
++    fun `default query hides adopted cats and shows newest first`() {
++        assertEquals(listOf("Mochi", "Luna", "Archie", "Bella"), CatQuery().names())
++    }
++
++    @Test
++    fun `text search matches name, breed and personality, ignoring case`() {
++        assertEquals(listOf("Archie"), CatQuery(text = "maine").names())
++        assertEquals(listOf("Luna"), CatQuery(text = "  SHY ").names())
++        assertEquals(emptyList<String>(), CatQuery(text = "dragon").names())
++    }
++
++    @Test
++    fun `filters combine with AND`() {
++        val query = CatQuery(sexes = setOf(Sex.MALE), goodWithDogs = true)
++        assertEquals(emptyList<String>(), query.names())
++        assertEquals(listOf("Mochi"), CatQuery(coats = setOf(CoatLength.LONG), goodWithKids = true).names())
++    }
++
++    @Test
++    fun `age group filter accepts several groups`() {
++        val query = CatQuery(ageGroups = setOf(AgeGroup.KITTEN, AgeGroup.YOUNG), sort = CatSort.YOUNGEST)
++        assertEquals(listOf("Mochi", "Luna"), query.names())
++    }
++
++    @Test
++    fun `free only keeps cats aged two and over`() {
++        assertEquals(listOf("Archie", "Bella"), CatQuery(freeOnly = true).names())
++    }
++
++    @Test
++    fun `sorting options order results correctly`() {
++        assertEquals(listOf("Archie", "Bella", "Luna", "Mochi"), CatQuery(sort = CatSort.NAME).names())
++        assertEquals(listOf("Archie", "Bella", "Luna", "Mochi"), CatQuery(sort = CatSort.OLDEST).names())
++        assertEquals(listOf("Bella", "Archie", "Luna", "Mochi"), CatQuery(sort = CatSort.FEE_LOW).names())
++    }
++
++    @Test
++    fun `status filter can include adopted cats`() {
++        val all = CatQuery(statuses = AdoptionStatus.entries.toSet(), sort = CatSort.NAME)
++        assertEquals(5, all.apply(cats).size)
++    }
++
++    @Test
++    fun `active filter count ignores text and sort`() {
++        val query = CatQuery(text = "x", sort = CatSort.NAME, sexes = setOf(Sex.MALE), freeOnly = true)
++        assertEquals(2, query.activeFilterCount)
++    }
++}
+diff --git a/app/src/test/java/com/thefelineco/domain/TestCats.kt b/app/src/test/java/com/thefelineco/domain/TestCats.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..aaff8f442c2c597400e2414d0a717232c5090ce0
+--- /dev/null
++++ b/app/src/test/java/com/thefelineco/domain/TestCats.kt
+@@ -0,0 +1,27 @@
++package com.thefelineco.domain
++
++import com.thefelineco.domain.model.AdoptionStatus
++import com.thefelineco.domain.model.Cat
++import com.thefelineco.domain.model.CoatLength
++import com.thefelineco.domain.model.Sex
++
++/** Builds a cat for tests with sensible defaults, so each test only states what it cares about. */
++fun testCat(
++    id: Long = 1,
++    name: String = "Tester",
++    breed: String = "Domestic Shorthair",
++    ageMonths: Int = 36,
++    sex: Sex = Sex.FEMALE,
++    coat: CoatLength = CoatLength.SHORT,
++    colour: String = "Tabby",
++    personality: List<String> = listOf("Friendly"),
++    goodWithKids: Boolean = true,
++    goodWithCats: Boolean = true,
++    goodWithDogs: Boolean = true,
++    status: AdoptionStatus = AdoptionStatus.AVAILABLE,
++    listedAt: Long = 0,
++) = Cat(
++    id = id, name = name, breed = breed, ageMonths = ageMonths, sex = sex, coat = coat, colour = colour,
++    weightKg = 4.0, personality = personality, description = "", imageName = "", goodWithKids = goodWithKids,
++    goodWithCats = goodWithCats, goodWithDogs = goodWithDogs, indoorOnly = true, status = status, listedAt = listedAt,
++)

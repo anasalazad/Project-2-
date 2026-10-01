@@ -1,0 +1,292 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index fbffaefc56fcda908f3e573155accc052f8ddd65..195f78616f7bb0760efea7b09f5f628e1be4a519 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -64,6 +64,7 @@ dependencies {
+     implementation(libs.androidx.ui.graphics)
+     implementation(libs.androidx.ui.tooling.preview)
+     implementation(libs.androidx.material3)
++    implementation(libs.androidx.material3.adaptive.navigation.suite)
+     implementation(libs.androidx.material.icons.extended)
+ 
+     implementation(libs.androidx.navigation.compose)
+diff --git a/app/src/main/java/com/thefelineco/MainActivity.kt b/app/src/main/java/com/thefelineco/MainActivity.kt
+index b7d5a76fbd99e655cdb1d4979ceb4ce9d2554767..a3bc43677bb6387c4e8e83d9fc894712ee540225 100644
+--- a/app/src/main/java/com/thefelineco/MainActivity.kt
++++ b/app/src/main/java/com/thefelineco/MainActivity.kt
+@@ -7,30 +7,19 @@ import androidx.compose.animation.AnimatedContent
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.togetherWith
+-import androidx.compose.foundation.layout.Arrangement
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.fillMaxSize
+-import androidx.compose.foundation.layout.wrapContentSize
+-import androidx.compose.material3.Button
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.Text
+-import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.thefelineco.di.AppViewModelProvider
+-import com.thefelineco.domain.model.User
+ import com.thefelineco.ui.MainViewModel
+ import com.thefelineco.ui.SessionState
+ import com.thefelineco.ui.auth.AuthNavHost
+ import com.thefelineco.ui.common.SplashScreen
+ import com.thefelineco.ui.common.setFelineContent
++import com.thefelineco.ui.navigation.FelineAppShell
+ 
+ /**
+- * Entry point. Shows the sign-in flow or the signed-in app depending on the saved session.
+- * The signed-in side is a temporary placeholder until the navigation shell is built.
++ * The main activity. It hosts every Compose screen through Navigation Compose, and launches
++ * BookingActivity and CheckoutActivity through the Activity Result API.
+  */
+ class MainActivity : ComponentActivity() {
+ 
+@@ -40,6 +29,9 @@ class MainActivity : ComponentActivity() {
+         super.onCreate(savedInstanceState)
+         setFelineContent {
+             val session by viewModel.session.collectAsStateWithLifecycle()
++            val basketCount by viewModel.basketCount.collectAsStateWithLifecycle()
++
++            // Cross-fade between the splash, the sign-in flow and the signed-in app.
+             AnimatedContent(
+                 targetState = session,
+                 contentKey = { it.contentKey },
+@@ -49,23 +41,15 @@ class MainActivity : ComponentActivity() {
+                 when (state) {
+                     SessionState.Loading -> SplashScreen()
+                     SessionState.SignedOut -> AuthNavHost()
+-                    is SessionState.SignedIn -> SignedInPlaceholder(state.user, onLogout = viewModel::logout)
++                    is SessionState.SignedIn -> FelineAppShell(
++                        // Read the latest user (e.g. new credit balance), not the snapshot
++                        // AnimatedContent captured when this account signed in.
++                        user = (session as? SessionState.SignedIn)?.user ?: state.user,
++                        basketCount = basketCount,
++                        onLogout = viewModel::logout,
++                    )
+                 }
+             }
+         }
+     }
+ }
+-
+-/** Temporary: proves sign-in works before the app shell exists. */
+-@Composable
+-private fun SignedInPlaceholder(user: User, onLogout: () -> Unit) {
+-    Column(
+-        Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
+-        horizontalAlignment = Alignment.CenterHorizontally,
+-        verticalArrangement = Arrangement.spacedBy(12.dp),
+-    ) {
+-        Text("Signed in as ${user.fullName}", style = MaterialTheme.typography.headlineSmall)
+-        Text("${user.credits} credits · ${if (user.isAdmin) "Admin" else "Customer"}")
+-        Button(onClick = onLogout) { Text("Log out") }
+-    }
+-}
+diff --git a/app/src/main/java/com/thefelineco/ui/navigation/FelineAppShell.kt b/app/src/main/java/com/thefelineco/ui/navigation/FelineAppShell.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad8678b0e701bc25901711d6d367f893ec081b7a
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/navigation/FelineAppShell.kt
+@@ -0,0 +1,132 @@
++package com.thefelineco.ui.navigation
++
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.WindowInsetsSides
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.navigationBars
++import androidx.compose.foundation.layout.only
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.windowInsetsPadding
++import androidx.compose.material3.Badge
++import androidx.compose.material3.BadgedBox
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.NavigationBarItemDefaults
++import androidx.compose.material3.NavigationRailItemDefaults
++import androidx.compose.material3.SnackbarHost
++import androidx.compose.material3.SnackbarHostState
++import androidx.compose.material3.Text
++import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
++import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
++import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavDestination.Companion.hasRoute
++import androidx.navigation.NavDestination.Companion.hierarchy
++import androidx.navigation.NavGraph.Companion.findStartDestination
++import androidx.navigation.NavHostController
++import androidx.navigation.compose.currentBackStackEntryAsState
++import androidx.navigation.compose.rememberNavController
++import com.thefelineco.domain.model.User
++import com.thefelineco.ui.common.LocalSnackbarHostState
++import com.thefelineco.ui.common.isWideLayout
++
++/**
++ * The signed-in app frame: a navigation rail on tablets or a bottom bar on phones, the NavHost,
++ * and an app-wide snackbar. Customers and admins see different destinations.
++ */
++@Composable
++fun FelineAppShell(user: User, basketCount: Int, onLogout: () -> Unit) {
++    val navController = rememberNavController()
++    val backStackEntry by navController.currentBackStackEntryAsState()
++    val currentDestination = backStackEntry?.destination
++    val destinations = if (user.isAdmin) TopLevelDestination.admin else TopLevelDestination.customer
++    val wide = isWideLayout()
++    val snackbarHostState = remember { SnackbarHostState() }
++
++    val colors = MaterialTheme.colorScheme
++    val itemColors = NavigationSuiteDefaults.itemColors(
++        navigationBarItemColors = NavigationBarItemDefaults.colors(
++            selectedIconColor = colors.onPrimary,
++            selectedTextColor = colors.primary,
++            indicatorColor = colors.primary,
++            unselectedIconColor = colors.onSurfaceVariant,
++            unselectedTextColor = colors.onSurfaceVariant,
++        ),
++        navigationRailItemColors = NavigationRailItemDefaults.colors(
++            selectedIconColor = colors.onPrimary,
++            selectedTextColor = colors.primary,
++            indicatorColor = colors.primary,
++            unselectedIconColor = colors.onSurfaceVariant,
++            unselectedTextColor = colors.onSurfaceVariant,
++        ),
++    )
++
++    NavigationSuiteScaffold(
++        layoutType = if (wide) NavigationSuiteType.NavigationRail else NavigationSuiteType.NavigationBar,
++        navigationSuiteColors = NavigationSuiteDefaults.colors(
++            navigationBarContainerColor = colors.surfaceContainerLow,
++            navigationRailContainerColor = colors.surfaceContainerLow,
++        ),
++        containerColor = colors.background,
++        navigationSuiteItems = {
++            destinations.forEach { destination ->
++                val selected = currentDestination?.hierarchy?.any { it.hasRoute(destination.routeClass) } == true
++                item(
++                    selected = selected,
++                    onClick = { navController.navigateToTopLevel(destination.route) },
++                    icon = {
++                        val icon = if (selected) destination.selectedIcon else destination.unselectedIcon
++                        if (destination == TopLevelDestination.BASKET && basketCount > 0) {
++                            BadgedBox(badge = { Badge { Text(basketCount.toString()) } }) {
++                                Icon(icon, contentDescription = null)
++                            }
++                        } else {
++                            Icon(icon, contentDescription = null)
++                        }
++                    },
++                    label = { Text(destination.label) },
++                    colors = itemColors,
++                )
++            }
++        },
++    ) {
++        CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
++            Box(
++                Modifier
++                    .fillMaxSize()
++                    // The bottom bar already handles the system navigation inset. The rail does not.
++                    .then(
++                        if (wide) Modifier.windowInsetsPadding(
++                            WindowInsets.navigationBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.End)
++                        ) else Modifier
++                    )
++            ) {
++                FelineNavHost(
++                    navController = navController,
++                    user = user,
++                    onLogout = onLogout,
++                )
++                SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter).padding(16.dp))
++            }
++        }
++    }
++}
++
++/**
++ * Opens a top-level destination the standard way: one copy on the back stack, with each tab's
++ * scroll and screen state saved and restored.
++ */
++fun NavHostController.navigateToTopLevel(route: Any) {
++    navigate(route) {
++        popUpTo(graph.findStartDestination().id) { saveState = true }
++        launchSingleTop = true
++        restoreState = true
++    }
++}
+diff --git a/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt b/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..32a603ee58d6d191c3c26eb26f3c3449590a3c81
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/ui/navigation/FelineNavHost.kt
+@@ -0,0 +1,45 @@
++package com.thefelineco.ui.navigation
++
++import androidx.compose.runtime.Composable
++import androidx.navigation.NavHostController
++import androidx.navigation.compose.NavHost
++import androidx.navigation.compose.composable
++import com.thefelineco.domain.model.User
++import com.thefelineco.ui.common.ComingSoonScreen
++
++/** Every in-app screen for a signed-in user. Secondary activities are launched from these screens. */
++@Composable
++fun FelineNavHost(
++    navController: NavHostController,
++    user: User,
++    onLogout: () -> Unit,
++) {
++    NavHost(
++        navController = navController,
++        startDestination = if (user.isAdmin) AdminDashboardRoute else HomeRoute,
++    ) {
++        // Customer
++        composable<HomeRoute> { ComingSoonScreen("Home") }
++        composable<AdoptRoute> { ComingSoonScreen("Adopt") }
++        composable<CatDetailRoute> { ComingSoonScreen("Cat profile") }
++        composable<ShopRoute> { ComingSoonScreen("Shop") }
++        composable<BasketRoute> { ComingSoonScreen("Basket") }
++        composable<BookingsRoute> { ComingSoonScreen("My bookings") }
++        composable<ProfileRoute> {
++            ComingSoonScreen(
++                title = "Hi, ${user.firstName}",
++                message = "${user.email} · ${user.credits} credits",
++                actionLabel = "Log out",
++                onAction = onLogout,
++            )
++        }
++
++        // Admin
++        composable<AdminDashboardRoute> { ComingSoonScreen("Admin dashboard") }
++        composable<AdminCatsRoute> { ComingSoonScreen("Manage cats") }
++        composable<AdminCatEditRoute> { ComingSoonScreen("Edit cat") }
++        composable<AdminBookingsRoute> { ComingSoonScreen("Appointments") }
++        composable<AdminProductsRoute> { ComingSoonScreen("Manage products") }
++        composable<AdminProductEditRoute> { ComingSoonScreen("Edit product") }
++    }
++}
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index e58cd2f1d0a3f7280c887e287281cff1b71d36ab..cd45cf829553242b4d5e2c53a538fee7018c3039 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -30,6 +30,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
+ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+ androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
++androidx-material3-adaptive-navigation-suite = { group = "androidx.compose.material3", name = "material3-adaptive-navigation-suite" }
+ androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+ androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

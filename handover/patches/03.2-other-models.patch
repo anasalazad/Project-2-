@@ -1,0 +1,131 @@
+diff --git a/app/src/main/java/com/thefelineco/domain/model/Booking.kt b/app/src/main/java/com/thefelineco/domain/model/Booking.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..575d91ce7faf1e48b3a773cde6119e503220aa86
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/model/Booking.kt
+@@ -0,0 +1,34 @@
++package com.thefelineco.domain.model
++
++import android.os.Parcelable
++import kotlinx.parcelize.Parcelize
++import java.time.LocalDate
++
++/**
++ * A meet & greet appointment for adopting a cat.
++ *
++ * BookingActivity sends it back to MainActivity through the Activity Result API.
++ */
++@Parcelize
++data class Booking(
++    val id: Long = 0,
++    val userId: Long,
++    val catId: Long,
++    val catName: String,
++    val catImageName: String,
++    val dateEpochDay: Long,
++    val timeSlot: String,
++    val fullName: String,
++    val email: String,
++    val phone: String,
++    val homeType: String,
++    val hasOtherPets: Boolean,
++    val hasChildren: Boolean,
++    val notes: String,
++    val feeCredits: Int,
++    val status: BookingStatus = BookingStatus.REQUESTED,
++    val createdAt: Long = System.currentTimeMillis(),
++) : Parcelable {
++
++    val date: LocalDate get() = LocalDate.ofEpochDay(dateEpochDay)
++}
+diff --git a/app/src/main/java/com/thefelineco/domain/model/Shop.kt b/app/src/main/java/com/thefelineco/domain/model/Shop.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..761ee8891a2adfa43080e777a41846af3fc3f47b
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/model/Shop.kt
+@@ -0,0 +1,54 @@
++package com.thefelineco.domain.model
++
++import android.os.Parcelable
++import kotlinx.parcelize.Parcelize
++
++/** An item for sale in the shop, priced in credits. */
++data class Product(
++    val id: Long = 0,
++    val name: String,
++    val brand: String,
++    val category: ProductCategory,
++    val priceCredits: Int,
++    val description: String,
++    val imageName: String,
++    val stock: Int,
++) {
++    val inStock: Boolean get() = stock > 0
++}
++
++/**
++ * One line in the basket. It is [Parcelable] so the whole basket can be passed to
++ * CheckoutActivity as an `ArrayList<CartItem>`.
++ */
++@Parcelize
++data class CartItem(
++    val productId: Long,
++    val name: String,
++    val imageName: String,
++    val unitPrice: Int,
++    val quantity: Int,
++    val stock: Int,
++) : Parcelable {
++    val lineTotal: Int get() = unitPrice * quantity
++}
++
++/** A completed shop purchase. CheckoutActivity returns it to MainActivity as a result. */
++@Parcelize
++data class Order(
++    val id: Long = 0,
++    val userId: Long,
++    val items: List<CartItem>,
++    val subtotal: Int,
++    val deliveryMethod: DeliveryMethod,
++    val deliveryName: String,
++    val address: String,
++    val createdAt: Long = System.currentTimeMillis(),
++) : Parcelable {
++    val total: Int get() = subtotal + deliveryMethod.extraCredits
++
++    val itemCount: Int get() = items.sumOf { it.quantity }
++}
++
++/** Sum of every line in a basket. */
++val List<CartItem>.subtotal: Int get() = sumOf { it.lineTotal }
+diff --git a/app/src/main/java/com/thefelineco/domain/model/User.kt b/app/src/main/java/com/thefelineco/domain/model/User.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..432e5a890ee62b70e4fa291788080bb3777b1ee2
+--- /dev/null
++++ b/app/src/main/java/com/thefelineco/domain/model/User.kt
+@@ -0,0 +1,25 @@
++package com.thefelineco.domain.model
++
++/** A signed-in account. Password data never leaves the data layer. */
++data class User(
++    val id: Long,
++    val fullName: String,
++    val email: String,
++    val role: UserRole,
++    val credits: Int,
++) {
++    val isAdmin: Boolean get() = role == UserRole.ADMIN
++
++    /** First name, used for friendly greetings. */
++    val firstName: String get() = fullName.substringBefore(' ')
++}
++
++/** One entry in the wallet history. [amount] is positive for credits in, negative for credits out. */
++data class CreditTransaction(
++    val id: Long,
++    val userId: Long,
++    val amount: Int,
++    val type: TransactionType,
++    val description: String,
++    val createdAt: Long,
++)
