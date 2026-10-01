@@ -13,7 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -46,14 +51,14 @@ fun AuthLayout(
         if (maxWidth >= 840.dp) {
             Row(Modifier.fillMaxSize()) {
                 BrandPanel(Modifier.weight(1.1f).fillMaxHeight(), large = true)
-                FormColumn(title, subtitle, Modifier.weight(1f).fillMaxHeight(), content)
+                FormColumn(title, subtitle, Modifier.weight(1f).fillMaxHeight(), belowBanner = false, content)
             }
         } else {
             // Read the constraint here: layout scopes can't see the outer scope's members implicitly.
             val bannerHeight = if (maxHeight > 700.dp) 260.dp else 180.dp
             Column(Modifier.fillMaxSize()) {
                 BrandPanel(Modifier.fillMaxWidth().height(bannerHeight), large = false)
-                FormColumn(title, subtitle, Modifier.weight(1f), content)
+                FormColumn(title, subtitle, Modifier.weight(1f), belowBanner = true, content)
             }
         }
     }
@@ -92,6 +97,8 @@ private fun FormColumn(
     title: String,
     subtitle: String,
     modifier: Modifier,
+    /** On phones the form sits under the photo banner, which already covers the status bar. */
+    belowBanner: Boolean,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(modifier.background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
@@ -101,7 +108,10 @@ private fun FormColumn(
         Column(
             Modifier
                 .fillMaxWidth()
-                .systemBarsPadding()
+                .windowInsetsPadding(
+                    if (belowBanner) WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+                    else WindowInsets.systemBars
+                )
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 32.dp, vertical = 32.dp),

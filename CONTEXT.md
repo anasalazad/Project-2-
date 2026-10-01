@@ -210,13 +210,15 @@ ui/checkout/                CheckoutActivity, CheckoutViewModel, CheckoutContrac
 - [x] **Phase 4**: Shop + Basket + CheckoutActivity + Account (wallet, orders, dark/light toggle)
 - [x] **Phase 5**: Admin (dashboard, cat add/edit/delete, appointments, products)
 - [x] **Phase 6**: Unit + instrumented tests, compile verification, review, docs (`TESTING.md`)
+- [x] **Extra**: Favourites (hearts on cards and profiles, favourites filter, Home row) + `tools/compile-check`
 - [ ] **Next**: user runs it on the tablet → fix anything found → add photos (`ASSETS.md`) → polish
 
 ### How the code has been verified (no Android SDK in the build container)
 - **All app Kotlin compiles** against JetBrains' desktop Compose 1.7.3 (the same `androidx.compose` APIs as
   Compose BOM 2024.12), with small stand-ins for Android-only types (Activity, Room annotations,
   DataStore, Navigation, Lifecycle). Result: 0 errors, 0 warnings.
-- **40 JVM unit tests pass** (rules, queries, validators, Adopt/Booking/Checkout ViewModels).
+- Re-run any time with `tools/compile-check/run.sh` (see `CLAUDE.md`).
+- **42 JVM unit tests pass** (rules, queries, validators, Adopt/Booking/Checkout ViewModels).
 - **Not yet run:** Room's annotation processor (KSP), resource/manifest merging, the instrumented tests in
   `app/src/androidTest`, and the app itself on a device. These happen on the first Android Studio build.
 
@@ -232,3 +234,4 @@ ui/checkout/                CheckoutActivity, CheckoutViewModel, CheckoutContrac
 - "Pending" is only ever set by a booking; admins can switch between Available and Adopted.
 - Theme defaults to dark (the brand look); Account → Dark theme switches to light and is remembered.
 - Admin forms validate image names against Android resource rules and preview the photo live.
+- Extra feature: favourites, stored per user in Room (`favourites` table, DB version 2).

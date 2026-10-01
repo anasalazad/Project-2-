@@ -104,9 +104,9 @@ fun HomeContent(
         item {
             CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard(state.availableCount.toString(), "cats looking for a home", Icons.Filled.Pets)
-                    StatCard(state.freeCount.toString(), "free to adopt (2 yrs+)", Icons.Filled.VolunteerActivism)
-                    StatCard(state.kittenCount.toString(), "kittens under 6 months", Icons.Filled.ChildCare)
+                    StatCard(state.availableCount.toString(), "cats looking for a home", Icons.Filled.Pets, showIcon = wide)
+                    StatCard(state.freeCount.toString(), "free to adopt (2 yrs+)", Icons.Filled.VolunteerActivism, showIcon = wide)
+                    StatCard(state.kittenCount.toString(), "kittens under 6 months", Icons.Filled.ChildCare, showIcon = wide)
                 }
             }
         }
@@ -272,16 +272,19 @@ private fun Hero(
 }
 
 @Composable
-private fun RowScope.StatCard(value: String, label: String, icon: ImageVector) {
+private fun RowScope.StatCard(value: String, label: String, icon: ImageVector, showIcon: Boolean) {
     Card(
         modifier = Modifier.weight(1f),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+            // Phones don't have room for the icon next to the number.
+            if (showIcon) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                    }
                 }
             }
             Column {

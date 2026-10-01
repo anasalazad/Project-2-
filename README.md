@@ -26,6 +26,7 @@ The login screen also has one-tap **Customer** / **Admin** demo buttons.
 
 ## Tests
 
-- **Unit tests** (40: rules, filters, validators, ViewModels): right-click `app/src/test/java` → **Run**, or `./gradlew test`.
+- **Unit tests** (42: rules, filters, validators, ViewModels): right-click `app/src/test/java` → **Run**, or `./gradlew test`.
 - **Instrumented tests** (Room credit/stock flows, login UI): connect the tablet, right-click `app/src/androidTest/java` → **Run**.
 - **Manual script:** see [`TESTING.md`](TESTING.md).
+- **Without Android Studio** (e.g. a cloud session): `tools/compile-check/run.sh` compiles the code and runs the unit tests.

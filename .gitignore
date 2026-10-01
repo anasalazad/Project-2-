@@ -9,3 +9,7 @@
 .externalNativeBuild/
 .cxx/
 .kotlin/
+/tools/compile-check/build/
+/tools/compile-check/.gradle/
+/tools/compile-check/.kotlin/
+/tools/compile-check/build-output.txt

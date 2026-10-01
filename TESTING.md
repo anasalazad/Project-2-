@@ -4,7 +4,7 @@
 
 | Suite | Where | How to run | What it covers |
 |---|---|---|---|
-| Unit tests (40) | `app/src/test` | Right-click `app/src/test/java` → **Run 'Tests in…'**, or `./gradlew test` | Credit rules, age groups, search/filter/sort, all form validators, Adopt/Booking/Checkout ViewModels (with fake repositories) |
+| Unit tests (42) | `app/src/test` | Right-click `app/src/test/java` → **Run 'Tests in…'**, or `./gradlew test` | Credit rules, age groups, search/filter/sort, all form validators, Adopt/Booking/Checkout ViewModels (with fake repositories) |
 | Database flows | `app/src/androidTest/.../data` | Tablet connected → right-click `app/src/androidTest/java` → **Run** | Seed data, fee held on booking, refund on cancel, reward on adoption, no double booking, checkout charges credits and reduces stock, stock limits |
 | Compose UI | `app/src/androidTest/.../ui` | Same as above | Login form shows field and form errors; demo buttons send the right events |
 
@@ -31,6 +31,8 @@ Tick each step. The **Brief** column shows which requirement the step demonstrat
 | B5 | Sort → **Oldest first** | Olive (15 yrs) first | Sorting |
 | B6 | Filter to nothing (e.g. Kitten + Senior + Hairless) | "No cats match" and **Clear filters** | Empty state |
 | B7 | Home → **Browse free-to-adopt cats** banner | Adopt opens with Free already selected | Navigation args |
+| B8 | Tap the ♥ on two cats → tap the **♥ Favourites** chip | Hearts pop red; only those two cats show; the chip count is 2 | Extra feature |
+| B9 | Go **Home** | A "Your favourites" row appears; un-hearting removes the cat instantly | Dynamic UI |
 
 ### C. Book a meet & greet (second activity)
 | # | Steps | Expected | Brief |
