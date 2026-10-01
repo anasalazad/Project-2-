@@ -3,6 +3,7 @@ package com.thefelineco.ui
 import com.thefelineco.domain.model.AgeGroup
 import com.thefelineco.domain.testCat
 import com.thefelineco.testing.FakeCatRepository
+import com.thefelineco.testing.FakeUserRepository
 import com.thefelineco.testing.MainDispatcherRule
 import com.thefelineco.ui.adopt.AdoptEvent
 import com.thefelineco.ui.adopt.AdoptViewModel
@@ -26,6 +27,8 @@ class AdoptViewModelTest {
         )
     )
 
+    private val users = FakeUserRepository()
+
     /** Keeps the WhileSubscribed state flow active for the test. */
     private fun kotlinx.coroutines.test.TestScope.subscribe(vm: AdoptViewModel) =
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
@@ -34,14 +37,14 @@ class AdoptViewModelTest {
 
     @Test
     fun `opening from the free banner shows only free cats`() = runTest {
-        val vm = AdoptViewModel(initialFreeOnly = true, catRepository = repo)
+        val vm = AdoptViewModel(initialFreeOnly = true, catRepository = repo, userRepository = users)
         subscribe(vm)
         assertEquals(listOf("Archie"), vm.names())
     }
 
     @Test
     fun `search and filters update the results`() = runTest {
-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
+        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
         subscribe(vm)
         assertEquals(listOf("Mochi", "Luna", "Archie"), vm.names())
 
@@ -55,7 +58,7 @@ class AdoptViewModelTest {
 
     @Test
     fun `clearing filters keeps the search text`() = runTest {
-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
+        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
         subscribe(vm)
         vm.onEvent(AdoptEvent.SearchChanged("a"))
         vm.onEvent(AdoptEvent.ToggleFreeOnly)
@@ -66,10 +69,24 @@ class AdoptViewModelTest {
 
     @Test
     fun `new listings appear without reloading`() = runTest {
-        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo)
+        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
         subscribe(vm)
         repo.cats.value = repo.cats.value + testCat(id = 4, name = "Nala", listedAt = 9)
         assertEquals("Nala", vm.names().first())
         assertEquals(4, vm.uiState.value.totalCount)
+    }
+
+    @Test
+    fun `hearting a cat adds it to favourites and the favourites filter`() = runTest {
+        val vm = AdoptViewModel(initialFreeOnly = false, catRepository = repo, userRepository = users)
+        subscribe(vm)
+        vm.onEvent(AdoptEvent.ToggleFavourite(2))
+        assertEquals(setOf(2L), vm.uiState.value.favourites)
+
+        vm.onEvent(AdoptEvent.ToggleFavouritesOnly)
+        assertEquals(listOf("Luna"), vm.names())
+
+        vm.onEvent(AdoptEvent.ToggleFavourite(2))
+        assertEquals(emptyList<String>(), vm.names())
     }
 }

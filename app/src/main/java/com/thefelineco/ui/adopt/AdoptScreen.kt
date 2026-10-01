@@ -97,8 +97,12 @@ fun AdoptContent(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit, onOpenCat: 
                 when {
                     state.isLoading -> LoadingState()
                     state.results.isEmpty() -> EmptyState(
-                        title = "No cats match",
-                        message = "Try a different search or remove a filter. New cats arrive every week!",
+                        title = if (state.query.favouritesOnly && state.favourites.isEmpty()) "No favourites yet" else "No cats match",
+                        message = if (state.query.favouritesOnly && state.favourites.isEmpty()) {
+                            "Tap the heart on any cat to save them here."
+                        } else {
+                            "Try a different search or remove a filter. New cats arrive every week!"
+                        },
                         icon = Icons.Filled.SearchOff,
                         actionLabel = "Clear filters",
                         onAction = {
@@ -116,7 +120,13 @@ fun AdoptContent(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit, onOpenCat: 
                     ) {
                         items(state.results, key = { it.id }) { cat ->
                             // animateItem() makes cards slide into place as filters change.
-                            CatCard(cat, onClick = { onOpenCat(cat.id) }, modifier = Modifier.animateItem())
+                            CatCard(
+                                cat = cat,
+                                onClick = { onOpenCat(cat.id) },
+                                isFavourite = cat.id in state.favourites,
+                                onToggleFavourite = { onEvent(AdoptEvent.ToggleFavourite(cat.id)) },
+                                modifier = Modifier.animateItem(),
+                            )
                         }
                     }
                 }
@@ -198,6 +208,11 @@ private fun QuickFilters(state: AdoptUiState, onEvent: (AdoptEvent) -> Unit) {
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item {
+            FelineFilterChip("♥ Favourites (${state.favourites.size})", state.query.favouritesOnly) {
+                onEvent(AdoptEvent.ToggleFavouritesOnly)
+            }
+        }
         item {
             FelineFilterChip("Free to adopt", state.query.freeOnly) { onEvent(AdoptEvent.ToggleFreeOnly) }
         }

@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import com.thefelineco.ui.common.favouriteIds
+import com.thefelineco.ui.common.toggleFavourite
 
 data class HomeUiState(
     val isLoading: Boolean = true,
@@ -23,12 +26,15 @@ data class HomeUiState(
     val freeCount: Int = 0,
     val kittenCount: Int = 0,
     val shopHighlights: List<Product> = emptyList(),
+    /** Hearted cats that haven't been adopted yet, by name. */
+    val favouriteCats: List<Cat> = emptyList(),
+    val favourites: Set<Long> = emptySet(),
 )
 
 /** Builds the Home dashboard from live cat, product and user data. */
 class HomeViewModel(
-    userRepository: UserRepository,
-    catRepository: CatRepository,
+    private val userRepository: UserRepository,
+    private val catRepository: CatRepository,
     shopRepository: ShopRepository,
 ) : ViewModel() {
 
@@ -36,7 +42,8 @@ class HomeViewModel(
         userRepository.currentUser,
         catRepository.observeCats(),
         shopRepository.observeProducts(),
-    ) { user, cats, products ->
+        favouriteIds(userRepository, catRepository),
+    ) { user, cats, products, favourites ->
         val available = cats.filter { it.status == AdoptionStatus.AVAILABLE }
         HomeUiState(
             isLoading = false,
@@ -46,8 +53,14 @@ class HomeViewModel(
             freeCount = available.count { it.isFree },
             kittenCount = available.count { it.ageGroup == AgeGroup.KITTEN },
             shopHighlights = products.filter { it.inStock }.take(SHOP_HIGHLIGHTS),
+            favouriteCats = cats.filter { it.id in favourites && it.status != AdoptionStatus.ADOPTED }.sortedBy { it.name },
+            favourites = favourites,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    fun onToggleFavourite(catId: Long) {
+        viewModelScope.launch { toggleFavourite(userRepository, catRepository, catId) }
+    }
 
     private companion object {
         const val NEW_ARRIVALS = 10

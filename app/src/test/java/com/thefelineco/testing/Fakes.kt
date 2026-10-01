@@ -50,6 +50,16 @@ class FakeCatRepository(cats: List<Cat> = emptyList()) : CatRepository {
     override suspend fun setStatus(id: Long, status: AdoptionStatus) {
         cats.value = cats.value.map { if (it.id == id) it.copy(status = status) else it }
     }
+
+    /** userId → favourite cat ids. */
+    val favourites = MutableStateFlow<Map<Long, Set<Long>>>(emptyMap())
+    override fun observeFavouriteIds(userId: Long): Flow<Set<Long>> = favourites.map { it[userId].orEmpty() }
+    override suspend fun toggleFavourite(userId: Long, catId: Long): Boolean {
+        val current = favourites.value[userId].orEmpty()
+        val nowFavourite = catId !in current
+        favourites.value = favourites.value + (userId to if (nowFavourite) current + catId else current - catId)
+        return nowFavourite
+    }
 }
 
 class FakeBookingRepository : BookingRepository {

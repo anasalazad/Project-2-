@@ -2,9 +2,11 @@ package com.thefelineco.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import com.thefelineco.data.local.entity.CatEntity
+import com.thefelineco.data.local.entity.FavouriteEntity
 import com.thefelineco.domain.model.AdoptionStatus
 import kotlinx.coroutines.flow.Flow
 
@@ -33,4 +35,17 @@ interface CatDao {
 
     @Query("SELECT COUNT(*) FROM cats")
     suspend fun count(): Int
+
+    // Favourites
+    @Query("SELECT catId FROM favourites WHERE userId = :userId")
+    fun observeFavouriteIds(userId: Long): Flow<List<Long>>
+
+    @Query("SELECT COUNT(*) FROM favourites WHERE userId = :userId AND catId = :catId")
+    suspend fun isFavourite(userId: Long, catId: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addFavourite(favourite: FavouriteEntity)
+
+    @Query("DELETE FROM favourites WHERE userId = :userId AND catId = :catId")
+    suspend fun removeFavourite(userId: Long, catId: Long)
 }

@@ -13,6 +13,7 @@ import com.thefelineco.data.local.entity.BookingEntity
 import com.thefelineco.data.local.entity.CartItemEntity
 import com.thefelineco.data.local.entity.CatEntity
 import com.thefelineco.data.local.entity.CreditTransactionEntity
+import com.thefelineco.data.local.entity.FavouriteEntity
 import com.thefelineco.data.local.entity.OrderEntity
 import com.thefelineco.data.local.entity.OrderItemEntity
 import com.thefelineco.data.local.entity.ProductEntity
@@ -29,8 +30,10 @@ import com.thefelineco.data.local.entity.UserEntity
         OrderEntity::class,
         OrderItemEntity::class,
         CreditTransactionEntity::class,
+        FavouriteEntity::class,
     ],
-    version = 1,
+    // v2: favourites table. Development builds wipe and re-seed on upgrade (see build()).
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

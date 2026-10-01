@@ -163,6 +163,29 @@ data class CreditTransactionEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+/**
+ * A cat a customer has hearted. Deleting the cat removes its favourites (CASCADE).
+ * Cats are saved with @Upsert (insert-or-update), so editing a cat never triggers the cascade.
+ */
+@Entity(
+    tableName = "favourites",
+    primaryKeys = ["userId", "catId"],
+    indices = [Index("catId")],
+    foreignKeys = [
+        ForeignKey(
+            entity = CatEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["catId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class FavouriteEntity(
+    val userId: Long,
+    val catId: Long,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
 /** Result row of the basket query (cart line joined with its product). */
 data class CartLine(
     val productId: Long,

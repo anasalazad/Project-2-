@@ -1,5 +1,8 @@
 package com.thefelineco.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,18 +14,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Female
 import androidx.compose.material.icons.filled.Male
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,7 +49,13 @@ import com.thefelineco.ui.theme.Silver
  * Used on Home (carousel) and Adopt (grid).
  */
 @Composable
-fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun CatCard(
+    cat: Cat,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isFavourite: Boolean = false,
+    onToggleFavourite: (() -> Unit)? = null,
+) {
     val sexLabel = cat.sex.label
     val feeLabel = if (cat.isFree) "free to adopt" else "${cat.adoptionFee} credits"
     Card(
@@ -68,9 +84,20 @@ fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
                         )
                     )
             )
-            FeeBadge(cat.adoptionFee, Modifier.align(Alignment.TopStart).padding(12.dp))
-            if (cat.status != AdoptionStatus.AVAILABLE) {
-                AdoptionStatusChip(cat.status, Modifier.align(Alignment.TopEnd).padding(12.dp))
+            Column(
+                Modifier.align(Alignment.TopStart).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                FeeBadge(cat.adoptionFee)
+                if (cat.status != AdoptionStatus.AVAILABLE) AdoptionStatusChip(cat.status)
+            }
+            if (onToggleFavourite != null) {
+                FavouriteButton(
+                    isFavourite = isFavourite,
+                    onToggle = onToggleFavourite,
+                    catName = cat.name,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+                )
             }
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),
@@ -98,6 +125,36 @@ fun CatCard(cat: Cat, onClick: () -> Unit, modifier: Modifier = Modifier) {
                     color = Silver,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Heart toggle with a little "pop" when a cat is favourited. Sits on photos, so it has its own dark
+ * backing to stay visible on any image.
+ */
+@Composable
+fun FavouriteButton(
+    isFavourite: Boolean,
+    onToggle: () -> Unit,
+    catName: String,
+    modifier: Modifier = Modifier,
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isFavourite) 1.15f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium),
+        label = "heart",
+    )
+    IconButton(onClick = onToggle, modifier = modifier) {
+        Surface(shape = CircleShape, color = Onyx.copy(alpha = 0.55f), modifier = Modifier.size(38.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    if (isFavourite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = if (isFavourite) "Remove $catName from favourites" else "Add $catName to favourites",
+                    tint = if (isFavourite) MaterialTheme.colorScheme.primary else Mist,
+                    modifier = Modifier.size(22.dp).graphicsLayer { scaleX = scale; scaleY = scale },
                 )
             }
         }

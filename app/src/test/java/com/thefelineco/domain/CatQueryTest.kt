@@ -64,6 +64,12 @@ class CatQueryTest {
     }
 
     @Test
+    fun `favourites only keeps hearted cats`() {
+        assertEquals(listOf("Archie"), CatQuery(favouritesOnly = true).apply(cats, favourites = setOf(2L, 4L)).map(Cat::name))
+        assertEquals(emptyList<String>(), CatQuery(favouritesOnly = true).names())
+    }
+
+    @Test
     fun `active filter count ignores text and sort`() {
         val query = CatQuery(text = "x", sort = CatSort.NAME, sexes = setOf(Sex.MALE), freeOnly = true)
         assertEquals(2, query.activeFilterCount)

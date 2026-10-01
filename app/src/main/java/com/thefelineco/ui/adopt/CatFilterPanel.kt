@@ -38,8 +38,9 @@ fun CatFilterPanel(query: CatQuery, onEvent: (AdoptEvent) -> Unit, modifier: Mod
                 TextButton(onClick = { onEvent(AdoptEvent.ClearFilters) }) { Text("Clear all") }
             }
         }
-        FilterGroup("Adoption fee") {
+        FilterGroup("Show") {
             FelineFilterChip("Free to adopt (2 yrs+)", query.freeOnly) { onEvent(AdoptEvent.ToggleFreeOnly) }
+            FelineFilterChip("My favourites", query.favouritesOnly) { onEvent(AdoptEvent.ToggleFavouritesOnly) }
         }
         FilterGroup("Age") {
             AgeGroup.entries.forEach { group ->

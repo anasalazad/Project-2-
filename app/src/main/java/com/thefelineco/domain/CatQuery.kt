@@ -30,16 +30,20 @@ data class CatQuery(
     val goodWithCats: Boolean = false,
     val goodWithDogs: Boolean = false,
     val freeOnly: Boolean = false,
+    val favouritesOnly: Boolean = false,
     val statuses: Set<AdoptionStatus> = setOf(AdoptionStatus.AVAILABLE, AdoptionStatus.PENDING),
     val sort: CatSort = CatSort.NEWEST,
 ) {
     /** Number of active filters (not counting text or sort), shown on the "Filters" button. */
     val activeFilterCount: Int
         get() = ageGroups.size + sexes.size + coats.size +
-            listOf(goodWithKids, goodWithCats, goodWithDogs, freeOnly).count { it }
+            listOf(goodWithKids, goodWithCats, goodWithDogs, freeOnly, favouritesOnly).count { it }
 
-    /** Returns the cats that match this query, in the chosen order. */
-    fun apply(cats: List<Cat>): List<Cat> = cats
+    /**
+     * Returns the cats that match this query, in the chosen order.
+     * @param favourites ids of the user's hearted cats, used by [favouritesOnly].
+     */
+    fun apply(cats: List<Cat>, favourites: Set<Long> = emptySet()): List<Cat> = cats
         .asSequence()
         .filter { it.status in statuses }
         .filter { it.matchesText(text) }
@@ -50,6 +54,7 @@ data class CatQuery(
         .filter { !goodWithCats || it.goodWithCats }
         .filter { !goodWithDogs || it.goodWithDogs }
         .filter { !freeOnly || it.isFree }
+        .filter { !favouritesOnly || it.id in favourites }
         .sortedWith(sort.comparator)
         .toList()
 }

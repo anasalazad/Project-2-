@@ -1,6 +1,8 @@
 package com.thefelineco.data.repository
 
+import androidx.room.withTransaction
 import com.thefelineco.data.local.FelineDatabase
+import com.thefelineco.data.local.entity.FavouriteEntity
 import com.thefelineco.data.local.entity.toDomain
 import com.thefelineco.data.local.entity.toEntity
 import com.thefelineco.domain.model.AdoptionStatus
@@ -18,6 +20,12 @@ interface CatRepository {
     suspend fun saveCat(cat: Cat): Long
     suspend fun deleteCat(id: Long): Result<Unit>
     suspend fun setStatus(id: Long, status: AdoptionStatus)
+
+    /** Ids of the cats [userId] has hearted, updated live. */
+    fun observeFavouriteIds(userId: Long): Flow<Set<Long>>
+
+    /** Hearts the cat if it isn't a favourite yet, otherwise un-hearts it. Returns the new state. */
+    suspend fun toggleFavourite(userId: Long, catId: Long): Boolean
 }
 
 class OfflineCatRepository(private val db: FelineDatabase) : CatRepository {
@@ -43,4 +51,17 @@ class OfflineCatRepository(private val db: FelineDatabase) : CatRepository {
     }
 
     override suspend fun setStatus(id: Long, status: AdoptionStatus) = catDao.updateStatus(id, status)
+
+    override fun observeFavouriteIds(userId: Long): Flow<Set<Long>> =
+        catDao.observeFavouriteIds(userId).map { it.toSet() }
+
+    override suspend fun toggleFavourite(userId: Long, catId: Long): Boolean = db.withTransaction {
+        if (catDao.isFavourite(userId, catId) > 0) {
+            catDao.removeFavourite(userId, catId)
+            false
+        } else {
+            catDao.addFavourite(FavouriteEntity(userId = userId, catId = catId))
+            true
+        }
+    }
 }

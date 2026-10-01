@@ -70,6 +70,7 @@ import com.thefelineco.ui.components.AdoptionStatusChip
 import com.thefelineco.ui.components.AssetImage
 import com.thefelineco.ui.components.CatCard
 import com.thefelineco.ui.components.EmptyState
+import com.thefelineco.ui.components.FavouriteButton
 import com.thefelineco.ui.components.FeeBadge
 import com.thefelineco.ui.components.LoadingState
 import com.thefelineco.ui.components.Pill
@@ -100,7 +101,7 @@ fun CatDetailScreen(
                 onAction = onBack,
             )
         }
-        else -> CatDetailContent(state, cat, onBack, onBook, onOpenCat)
+        else -> CatDetailContent(state, cat, onBack, onBook, onOpenCat, viewModel::onToggleFavourite)
     }
 }
 
@@ -111,6 +112,7 @@ fun CatDetailContent(
     onBack: () -> Unit,
     onBook: (Cat) -> Unit,
     onOpenCat: (Long) -> Unit,
+    onToggleFavourite: () -> Unit,
 ) {
     if (isExpandedLayout()) {
         // Large tablet: photo on the left, details scroll on the right.
@@ -123,6 +125,9 @@ fun CatDetailContent(
                     modifier = Modifier.fillMaxSize().clip(MaterialTheme.shapes.extraLarge),
                 )
                 BackButton(onBack, Modifier.padding(16.dp))
+                if (!state.isAdmin) {
+                    FavouriteButton(state.isFavourite, onToggleFavourite, cat.name, Modifier.align(Alignment.TopEnd).padding(10.dp))
+                }
             }
             Column(
                 Modifier
@@ -151,6 +156,12 @@ fun CatDetailContent(
                     )
                 )
                 BackButton(onBack, Modifier.statusBarsPadding().padding(16.dp))
+                if (!state.isAdmin) {
+                    FavouriteButton(
+                        state.isFavourite, onToggleFavourite, cat.name,
+                        Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(10.dp),
+                    )
+                }
             }
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 CatDetails(state, cat, onBook, onOpenCat)

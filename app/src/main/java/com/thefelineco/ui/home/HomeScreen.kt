@@ -79,7 +79,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    if (state.isLoading) LoadingState() else HomeContent(state, onOpenCat, onBrowseCats, onOpenShop)
+    if (state.isLoading) LoadingState() else HomeContent(state, onOpenCat, onBrowseCats, onOpenShop, viewModel::onToggleFavourite)
 }
 
 @Composable
@@ -88,6 +88,7 @@ fun HomeContent(
     onOpenCat: (Long) -> Unit,
     onBrowseCats: (freeOnly: Boolean) -> Unit,
     onOpenShop: () -> Unit,
+    onToggleFavourite: (Long) -> Unit = {},
 ) {
     val wide = isWideLayout()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
@@ -125,7 +126,37 @@ fun HomeContent(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 items(state.newArrivals, key = { it.id }) { cat ->
-                    CatCard(cat, onClick = { onOpenCat(cat.id) }, modifier = Modifier.width(if (wide) 240.dp else 200.dp))
+                    CatCard(
+                        cat = cat,
+                        onClick = { onOpenCat(cat.id) },
+                        isFavourite = cat.id in state.favourites,
+                        onToggleFavourite = { onToggleFavourite(cat.id) },
+                        modifier = Modifier.width(if (wide) 240.dp else 200.dp),
+                    )
+                }
+            }
+        }
+        // Only shown once the user has hearted a cat.
+        if (state.favouriteCats.isNotEmpty()) {
+            item {
+                CenteredContent(Modifier.padding(horizontal = ScreenPadding).padding(top = 36.dp, bottom = 12.dp)) {
+                    SectionHeader(title = "Your favourites", subtitle = "The cats you've fallen for")
+                }
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = ScreenPadding),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    items(state.favouriteCats, key = { it.id }) { cat ->
+                        CatCard(
+                            cat = cat,
+                            onClick = { onOpenCat(cat.id) },
+                            isFavourite = true,
+                            onToggleFavourite = { onToggleFavourite(cat.id) },
+                            modifier = Modifier.width(if (wide) 200.dp else 170.dp).animateItem(),
+                        )
+                    }
                 }
             }
         }

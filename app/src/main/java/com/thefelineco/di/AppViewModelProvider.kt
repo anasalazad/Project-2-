@@ -43,7 +43,11 @@ object AppViewModelProvider {
         }
         initializer {
             // Route arguments arrive through the SavedStateHandle of the navigation back stack entry.
-            AdoptViewModel(createSavedStateHandle().toRoute<AdoptRoute>().freeOnly, container().catRepository)
+            AdoptViewModel(
+                initialFreeOnly = createSavedStateHandle().toRoute<AdoptRoute>().freeOnly,
+                catRepository = container().catRepository,
+                userRepository = container().userRepository,
+            )
         }
         initializer {
             CatDetailViewModel(

@@ -8,6 +8,7 @@ import com.thefelineco.data.local.FelineDatabase
 import com.thefelineco.data.local.seed.DatabaseSeeder
 import com.thefelineco.data.local.seed.SeedData
 import com.thefelineco.data.repository.OfflineBookingRepository
+import com.thefelineco.data.repository.OfflineCatRepository
 import com.thefelineco.data.repository.OfflineShopRepository
 import com.thefelineco.domain.CreditRules
 import com.thefelineco.domain.model.AdoptionStatus
@@ -121,6 +122,21 @@ class AdoptionAndShopFlowTest {
         assertEquals(400 - order.total, credits())
         assertEquals(product.stock - 2, db.shopDao().getProduct(product.id)!!.stock)
         assertTrue(shop.observeCart(demoUserId).first().isEmpty())
+    }
+
+    @Test
+    fun favouritesToggleAndAreRemovedWithTheCat() = runTest {
+        val cats = OfflineCatRepository(db)
+        val mochi = catNamed("Mochi")
+        assertTrue(cats.toggleFavourite(demoUserId, mochi.id))
+        assertEquals(setOf(mochi.id), cats.observeFavouriteIds(demoUserId).first())
+
+        // Editing the cat (an upsert) must not drop the favourite.
+        cats.saveCat(cats.getCat(mochi.id)!!.copy(colour = "Cream"))
+        assertEquals(setOf(mochi.id), cats.observeFavouriteIds(demoUserId).first())
+
+        cats.deleteCat(mochi.id).getOrThrow()
+        assertTrue(cats.observeFavouriteIds(demoUserId).first().isEmpty())
     }
 
     @Test
